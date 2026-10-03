@@ -45,11 +45,11 @@ export default function ImportDialog({ schema, dbFileName, onClose, onDone }: Pr
         );
       }
     } catch {
-      /* диалог отменён */
+      /* dialog cancelled */
     }
   };
 
-  // Превью при смене файла/опций
+  // Preview on file/option change
   useEffect(() => {
     if (!path) return;
     setLoading(true);
@@ -61,7 +61,7 @@ export default function ImportDialog({ schema, dbFileName, onClose, onDone }: Pr
       .finally(() => setLoading(false));
   }, [path, delim, hasHeader]);
 
-  // Маппинг по умолчанию: для новой таблицы — заголовки, для существующей — автосопоставление
+  // Default mapping: headers for a new table, auto-match for an existing one
   useEffect(() => {
     if (!preview) return;
     if (mode === "new") {

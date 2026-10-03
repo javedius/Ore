@@ -7,7 +7,7 @@ use std::path::Path;
 use std::time::Duration;
 use tauri::State;
 
-// --- Типы, отдающиеся фронтенду (camelCase через serde) ---
+// --- Types sent to the frontend (camelCase via serde) ---
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -54,7 +54,7 @@ pub struct DbInfo {
     pub schema: Schema,
 }
 
-// --- Интроспекция ---
+// --- Introspection ---
 
 pub fn pragma_columns(conn: &Connection, name: &str) -> Result<Vec<ColumnInfo>, String> {
     let qname = quote_ident(name);
@@ -142,7 +142,7 @@ pub fn build_schema(conn: &Connection) -> Result<Schema, String> {
     })
 }
 
-/// Проверка, что объект — таблица или view (whitelist от инъекций).
+/// Check that the object is a table or view (whitelist against injection).
 pub fn object_exists(conn: &Connection, name: &str) -> bool {
     conn.query_row(
         "SELECT 1 FROM sqlite_master WHERE name = ?1 AND type IN ('table','view')",
@@ -171,7 +171,7 @@ pub fn column_exists(conn: &Connection, table: &str, column: &str) -> bool {
     false
 }
 
-// --- Команды: жизненный цикл БД и схема ---
+// --- Commands: DB lifecycle and schema ---
 
 #[tauri::command(async)]
 pub fn open_db(path: String, db: State<'_, AppDb>) -> Result<DbInfo, String> {
@@ -185,7 +185,7 @@ pub fn open_db(path: String, db: State<'_, AppDb>) -> Result<DbInfo, String> {
     .map_err(db_err)?;
     conn.busy_timeout(Duration::from_secs(5)).map_err(db_err)?;
 
-    // Первый же запрос провалится с NOTADB, если файл не SQLite-база
+    // The first query fails with NOTADB if the file is not a SQLite database
     let fallback_name =
         Path::new(&path).file_name().and_then(|s| s.to_str()).unwrap_or(&path).to_string();
     let sqlite_version: String = conn

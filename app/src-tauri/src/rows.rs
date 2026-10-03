@@ -45,8 +45,8 @@ fn scalar_value(s: &str) -> SqlValue {
     }
 }
 
-/// Префиксные операторы фильтра: `=v`, `>v`, `<v`, иначе — подстрока (LIKE).
-/// Колонки не из объекта молча пропускаются (whitelist от инъекций).
+/// Filter prefix operators: `=v`, `>v`, `<v`, otherwise substring (LIKE).
+/// Columns not in the object are silently skipped (whitelist against injection).
 pub fn build_filters(
     conn: &Connection,
     object: &str,
@@ -117,8 +117,8 @@ pub fn get_rows(
         _ => String::new(),
     };
 
-    // Основной путь — с rowid (нужен для редактирования); views и WITHOUT ROWID — read-only.
-    // Метаданные колонок берём из PRAGMA table_info, они совпадают с SELECT *.
+    // Primary path — with rowid (needed for editing); views and WITHOUT ROWID are read-only.
+    // Column metadata comes from PRAGMA table_info; it matches SELECT *.
     let pragma_cols = pragma_columns(conn, &object)?;
     let sql_with_rowid = format!(
         "SELECT rowid, * FROM {}{}{} LIMIT ? OFFSET ?",
@@ -193,7 +193,7 @@ pub fn exec_sql(sql: String, db: State<'_, AppDb>) -> Result<SqlResult, String> 
             }
             out.push(r);
             if out.len() >= 1000 {
-                break; // мягкий потолок выборки для UI
+                break; // soft UI fetch cap
             }
         }
         SqlResult {
@@ -223,7 +223,7 @@ mod tests {
             &[
                 FilterArg { column: "a".into(), value: ">10".into() },
                 FilterArg { column: "b".into(), value: "foo".into() },
-                FilterArg { column: "nope".into(), value: "x".into() }, // не из таблицы — отбрасывается
+                FilterArg { column: "nope".into(), value: "x".into() }, // not in the table — dropped
             ],
         )
         .unwrap();

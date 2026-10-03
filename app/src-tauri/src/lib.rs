@@ -1,13 +1,13 @@
-//! Ore — кроссплатформенный редактор SQLite.
+//! Ore — a lightweight cross-platform SQLite editor.
 //!
-//! Модули по зонам ответственности:
-//! - `util`   — мелкие хелперы (кавычки идентификаторов, конвертация значений)
-//! - `state`  — открытое соединение с БД (Tauri-managed состояние)
-//! - `schema` — типы схемы, интроспекция, open/close/get_schema
-//! - `rows`   — чтение данных: фильтры, пагинация, exec_sql
-//! - `edit`   — правка данных: update/insert/delete по rowid
-//! - `csv_io` — импорт/экспорт CSV и JSON
-//! - `files`  — простые файловые команды
+//! Modules by responsibility:
+//! - `util`   — small helpers (identifier quoting, value conversion)
+//! - `state`  — the open database connection (Tauri-managed state)
+//! - `schema` — schema types, introspection, open/close/get_schema
+//! - `rows`   — data reading: filters, pagination, exec_sql
+//! - `edit`   — data editing: update/insert/delete by rowid
+//! - `csv_io` — CSV/JSON import and export
+//! - `files`  — simple file commands
 
 mod csv_io;
 mod edit;

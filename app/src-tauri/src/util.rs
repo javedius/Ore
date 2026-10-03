@@ -5,12 +5,12 @@ pub fn db_err(e: rusqlite::Error) -> String {
     e.to_string()
 }
 
-/// Идентификатор в двойных кавычках (внутренние кавычки удваиваются).
+/// Identifier in double quotes (inner quotes are doubled).
 pub fn quote_ident(name: &str) -> String {
     format!("\"{}\"", name.replace('"', "\"\""))
 }
 
-/// Значение SQLite → JSON для фронтенда (BLOB отдаётся размером в байтах).
+/// SQLite value -> JSON for the frontend (BLOB is reported as byte size).
 pub fn value_to_json(v: ValueRef<'_>) -> Value {
     match v {
         ValueRef::Null => Value::Null,
@@ -21,7 +21,7 @@ pub fn value_to_json(v: ValueRef<'_>) -> Value {
     }
 }
 
-/// Значение SQLite → текст для CSV-экспорта (BLOB — hex-литералом x'...').
+/// SQLite value -> text for CSV export (BLOB as a hex literal).
 pub fn cell_to_text(v: ValueRef<'_>) -> String {
     match v {
         ValueRef::Null => String::new(),

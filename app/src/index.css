@@ -1,7 +1,7 @@
 /* ==========================================================================
-   SQLite editor — клей поверх Caliper tokens/shared.
-   Здесь: адаптация каркаса под реальное окно (без мок-панели),
-   state-классы, которых не было в статике, и стили SQL-вью.
+   Ore — glue on top of Caliper tokens/shared.
+   Here: adapting the frame to the real window (no mock panel),
+   state classes missing from the static mockups, and SQL view styles.
    ========================================================================== */
 
 html,
@@ -10,7 +10,7 @@ body,
   height: 100%;
 }
 
-/* В приложении нет мок-панели — окно занимает весь вьюпорт */
+/* No mock panel in the app — the window fills the viewport */
 .app {
   height: 100vh;
 }
@@ -32,7 +32,7 @@ body,
   min-height: 120px;
 }
 
-/* Drag-over у зоны импорта (в статике было только :hover) */
+/* Drag-over state for the import zone (the static mockup had :hover only) */
 .dropzone {
   cursor: pointer;
 }
@@ -65,7 +65,7 @@ body,
 }
 
 /* ==========================================================================
-   Empty state (перенос из макета)
+   Empty state (ported from the mockup)
    ========================================================================== */
 
 .es-body {
@@ -165,7 +165,7 @@ body,
 }
 
 /* ==========================================================================
-   SQL-вью (перенос из макета sql-tab)
+   SQL view (ported from the sql-tab mockup)
    ========================================================================== */
 
 .sql-layout {
@@ -367,7 +367,7 @@ body,
   pointer-events: none;
 }
 
-/* Числовые/датные td в гриде результатов SQL тоже выравниваем как в макете */
+/* Numeric/date td in the SQL result grid align like in the mockup */
 .result-grid td .cellv {
   display: block;
   overflow: hidden;
@@ -376,7 +376,7 @@ body,
 }
 
 /* ==========================================================================
-   Модальный диалог импорта CSV
+   Modal CSV import dialog
    ========================================================================== */
 
 .modal-backdrop {

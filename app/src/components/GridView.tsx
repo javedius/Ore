@@ -73,7 +73,7 @@ export default function GridView({ name, kind, hasRowid, onStatus, onSchemaChang
     reload();
   }, [reload]);
 
-  // Сброс локального состояния при переключении объекта
+  // Reset local state when switching objects
   useEffect(() => {
     setEditing(null);
     setSelected(null);
@@ -132,7 +132,7 @@ export default function GridView({ name, kind, hasRowid, onStatus, onSchemaChang
     const col = data.columns[editing.colIdx]?.name;
     setEditing(null);
     if (rowid == null || !col) return;
-    // Пустой ввод сохраняет NULL только если ячейка и была NULL; иначе — пустая строка
+    // Empty input saves NULL only if the cell was NULL; otherwise an empty string
     const value = editing.value === "" && editing.wasNull ? null : editing.value;
     try {
       await updateCell(name, rowid, col, value);

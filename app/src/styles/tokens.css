@@ -1,59 +1,59 @@
 /* ==========================================================================
    CALIPER — design tokens
-   SQLite editor (Tauri) · один файл на все экраны
-   Темы: html[data-theme="dark"] (по умолчанию) / html[data-theme="light"]
-   Правило: тени только у всплывающих слоёв; всё остальное — плоскость + hairline.
+   Ore SQLite editor (Tauri) · one file for all screens
+   Themes: html[data-theme="dark"] (default) / html[data-theme="light"]
+   Rule: shadows only for floating layers; everything else is flat + hairline.
    ========================================================================== */
 
 :root {
   color-scheme: dark;
 
-  /* --- Поверхности (3 уровня + колодец + подложка страницы) --- */
-  --bg-app:     #15191A;  /* рабочая область: грид, редактор */
-  --bg-panel:   #1B2022;  /* хром: тайтлбар, сайдбар, тулбары, меню, диалоги */
-  --bg-surface: #22282A;  /* поля ввода, шапка грида, чипы */
-  --bg-inset:   #101415;  /* «колодец»: SQL-редактор */
-  --bg-canvas:  #0E1213;  /* подложка страницы обзора / стейджа */
+  /* --- Surfaces (3 levels + inset + page canvas) --- */
+  --bg-app:     #15191A;  /* work area: grid, editor */
+  --bg-panel:   #1B2022;  /* chrome: titlebar, sidebar, toolbars, menus, dialogs */
+  --bg-surface: #22282A;  /* inputs, grid header, chips */
+  --bg-inset:   #101415;  /* inset well: SQL editor */
+  --bg-canvas:  #0E1213;  /* overview page / stage canvas */
 
-  /* --- Состояния поверхностей (полупрозрачные) --- */
+  /* --- Surface states (translucent) --- */
   --hover:          rgba(223, 233, 230, .05);
   --hover-strong:   rgba(223, 233, 230, .09);
   --selected:       rgba(83, 199, 180, .13);
   --selected-strong:rgba(83, 199, 180, .22);
 
-  /* --- Непрозрачные эквиваленты (для sticky-ячеек и слоёв поверх контента) --- */
+  /* --- Opaque equivalents (for sticky cells and layers above content) --- */
   --hover-o:          #1F2324;
   --hover-strong-o:   #262B2C;
   --selected-o:       #1D302E;
   --selected-strong-o:#233F3C;
 
-  /* --- Волосяные линии --- */
+  /* --- Hairlines --- */
   --line:        #272E30;
   --line-strong: #37403F;
 
-  /* --- Текст --- */
-  --text-1: #DDE4E2;  /* данные, основной */
-  --text-2: #9AA7A4;  /* подписи, заголовки секций */
-  --text-3: #7C8986;  /* мета, плейсхолдеры */
+  /* --- Text --- */
+  --text-1: #DDE4E2;  /* primary data */
+  --text-2: #9AA7A4;  /* labels, section headings */
+  --text-3: #7C8986;  /* meta, placeholders */
 
-  /* --- Акцент «петроль»: только интерактив и выделение --- */
+  /* --- Teal accent: interactive and selection only --- */
   --accent:          #53C7B4;
   --accent-hover:    #6FD6C5;
-  --accent-contrast: #0A2723;   /* текст на акцентной заливке */
+  --accent-contrast: #0A2723;   /* text on accent fill */
   --accent-dim:      rgba(83, 199, 180, .13);
   --accent-line:     rgba(83, 199, 180, .55);
 
-  /* --- Семантика (резерв: только ошибки/предупреждения) --- */
+  /* --- Semantic (reserved: errors/warnings only) --- */
   --error:      #F0887A;
   --error-dim:  rgba(240, 136, 122, .11);
   --error-line: rgba(240, 136, 122, .45);
-  --warn:       #D9A85B;   /* несохранённые изменения, destructive */
+  --warn:       #D9A85B;   /* unsaved changes, destructive */
   --warn-dim:   rgba(217, 168, 91, .12);
 
-  /* --- Тени: только всплывающие слои --- */
+  /* --- Shadows: floating layers only --- */
   --shadow-pop: 0 4px 18px rgba(0, 0, 0, .45);
 
-  /* --- Типографика: системные стеки, без CDN --- */
+  /* --- Typography: system stacks, no CDN --- */
   --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
              Ubuntu, Cantarell, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono",
@@ -65,16 +65,16 @@
   --lh-ui:   1.45;
   --lh-code: 1.6;
 
-  /* --- Метрика: базовый шаг 4px --- */
+  /* --- Metrics: 4px base step --- */
   --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px; --s5: 20px; --s6: 24px;
   --r1: 3px;  --r2: 5px;  --r3: 8px;  --r4: 10px;
 
   --h-titlebar: 40px;
   --h-tab:      34px;
   --h-toolbar:  38px;
-  --h-head:     32px;   /* шапка грида */
-  --h-filter:   28px;   /* строка фильтров */
-  --h-row:      28px;   /* строка данных */
+  --h-head:     32px;   /* grid header */
+  --h-filter:   28px;   /* filter row */
+  --h-row:      28px;   /* data row */
   --h-status:   26px;
   --h-pager:    34px;
   --h-input:    26px;
@@ -86,8 +86,8 @@
 }
 
 /* ==========================================================================
-   Светлая тема — «анодированное серебро»: белая рабочая область,
-   холодный светло-серый хром, тот же петроль, затемнённый для контраста.
+   Light theme — "anodized silver": white work area,
+   cool light-gray chrome, the same teal darkened for contrast.
    ========================================================================== */
 
 :root[data-theme="light"] {

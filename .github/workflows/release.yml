@@ -1,7 +1,7 @@
-# Сборка дистрибутивов Ore под macOS / Windows / Linux.
-# Запуск: git tag v0.1.0 && git push --tags
-# Артефакты прикладываются к черновику GitHub Release.
-# macOS-сборки без подписи — Gatekeeper покажет предупреждение (см. PRD R3).
+# Build Ore distributables for macOS / Windows / Linux.
+# Trigger: git tag v0.1.0 && git push --tags
+# Artifacts are attached to a draft GitHub Release.
+# Unsigned macOS builds trigger a Gatekeeper warning.
 
 name: Release
 

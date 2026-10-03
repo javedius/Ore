@@ -1,4 +1,4 @@
-/** SVG-спрайт иконок из макетов Caliper (монохром, stroke 1.5). */
+/** SVG icon sprite from the Caliper mockups (monochrome, 1.5 stroke). */
 export function IconSprite() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" style={{ display: "none" }} aria-hidden="true">

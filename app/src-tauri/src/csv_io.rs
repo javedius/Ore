@@ -8,7 +8,7 @@ use serde_json::Value;
 use std::fs;
 use tauri::State;
 
-// --- Чтение CSV ---
+// --- CSV reading ---
 
 fn csv_reader(
     path: &str,
@@ -35,7 +35,7 @@ fn read_records(path: &str, delimiter: u8) -> Result<Vec<Vec<String>>, String> {
     Ok(out)
 }
 
-// --- Превью ---
+// --- Preview ---
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -73,9 +73,9 @@ pub fn csv_preview(path: String, delimiter: String, has_header: bool) -> Result<
     })
 }
 
-// --- Импорт ---
+// --- Import ---
 
-/// Вывод типа колонки по значениям: INTEGER → REAL → TEXT.
+/// Infer a column type from its values: INTEGER -> REAL -> TEXT.
 fn infer_type(records: &[Vec<String>], col: usize, has_header: bool) -> &'static str {
     let mut all_int = true;
     let mut all_real = true;
@@ -119,7 +119,7 @@ pub struct ImportArgs {
     pub create_table: bool,
     pub delimiter: String,
     pub has_header: bool,
-    /// csv-колонка i -> колонка таблицы (None — пропустить)
+    /// csv column i -> table column (None — skip)
     pub mapping: Vec<Option<String>>,
 }
 
@@ -165,7 +165,7 @@ pub fn import_csv(args: ImportArgs, db: State<'_, AppDb>) -> Result<ImportResult
 
     let records = read_records(&args.path, d)?;
 
-    // Новая таблица — создаём с выведенными типами; дубликаты имён получают суффикс
+    // New table — created with inferred types; duplicate names get a suffix
     if args.create_table {
         let mut defs = Vec::new();
         let mut used = std::collections::HashSet::new();
@@ -214,7 +214,7 @@ pub fn import_csv(args: ImportArgs, db: State<'_, AppDb>) -> Result<ImportResult
     Ok(ImportResult { imported })
 }
 
-// --- Экспорт ---
+// --- Export ---
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]

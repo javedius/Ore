@@ -33,7 +33,7 @@ export interface DbInfo {
   schema: Schema;
 }
 
-/** Значение ячейки из Rust: NULL | число | текст | BLOB (размер в байтах) */
+/** Cell value from Rust: NULL | number | string | BLOB (byte size) */
 export type Cell = null | number | string | { __blob__: number };
 
 export interface RowsResult {

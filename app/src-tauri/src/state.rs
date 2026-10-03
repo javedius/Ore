@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 use std::sync::Mutex;
 
-/// Открытое соединение с БД. Одно соединение на приложение (MVP).
+/// The open database connection. One connection per app (MVP).
 #[derive(Default)]
 pub struct AppDb(pub Mutex<Option<Connection>>);

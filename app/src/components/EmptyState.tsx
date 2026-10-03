@@ -44,7 +44,7 @@ export default function EmptyState({ onOpened }: { onOpened: (db: DbInfo) => voi
   const [dragOver, setDragOver] = useState(false);
 
   useEffect(() => {
-    // Помечаем недавние файлы, которых больше нет на диске (только внутри Tauri)
+    // Mark recent files that no longer exist on disk (inside Tauri only)
     if (!isTauri()) return;
     for (const r of recents) {
       pathExists(r.path).then((ok) => setMissing((m) => ({ ...m, [r.path]: !ok })));
@@ -70,7 +70,7 @@ export default function EmptyState({ onOpened }: { onOpened: (db: DbInfo) => voi
         try {
           localStorage.setItem(RECENTS_KEY, JSON.stringify(next));
         } catch {
-          /* приватный режим — не критично */
+          /* private mode — not critical */
         }
         onOpened(db);
       } catch (e) {
@@ -90,11 +90,11 @@ export default function EmptyState({ onOpened }: { onOpened: (db: DbInfo) => voi
       });
       if (typeof file === "string") await doOpen(file);
     } catch {
-      /* диалог отменён */
+      /* dialog cancelled */
     }
   }, [doOpen]);
 
-  // Drag&drop файла базы на окно
+  // Drag&drop of a database file onto the window
   useEffect(() => {
     if (!isTauri()) return;
     let unlisten: (() => void) | undefined;
