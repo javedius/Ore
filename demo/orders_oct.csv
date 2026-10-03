@@ -1,0 +1,7 @@
+order_id,user_id,total,status,coupon_code
+9041,3,129.90,paid,WELCOME10
+9042,17,54.00,pending,
+9043,3,249.00,paid,SAVE25
+9044,42,18.50,paid,
+9045,8,310.00,paid,SAVE25
+9046,12,77.20,refunded,

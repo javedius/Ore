@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Caliper — направление UI · SQLite editor</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="shared.css">
+<style>
+  /* --- только страница обзора --- */
+  body { background: var(--bg-canvas); }
+  .ix-wrap { max-width: 1120px; margin: 0 auto; padding: 44px 28px 90px; }
+
+  .ix-head { display: flex; align-items: flex-start; gap: 24px; }
+  .ix-mark { font: 600 34px/1 var(--font-mono); letter-spacing: -.01em; color: var(--text-1); }
+  .ix-mark-sub { margin-top: 8px; font: 600 11px/1 var(--font-mono); color: var(--text-3); }
+  .ix-tagline { margin-top: 14px; max-width: 660px; font: 14px/1.65 var(--font-ui); color: var(--text-2); }
+  .ix-head .theme-toggle { margin-left: auto; position: sticky; top: 14px; }
+
+  .ix-sec { margin-top: 44px; padding-top: 22px; border-top: 1px solid var(--line); }
+  .ix-sec > h2 { font: 600 12px/1.3 var(--font-ui); color: var(--text-3); margin-bottom: 16px; }
+
+  .pal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 40px; }
+  .pal-col h3 { font: 600 11px/1.3 var(--font-ui); color: var(--text-2); margin-bottom: 8px; }
+  .sw { display: flex; align-items: center; gap: 12px; padding: 5px 0; border-bottom: 1px solid var(--line); }
+  .sw:last-child { border-bottom: 0; }
+  .sw-chip {
+    width: 42px; height: 26px; border-radius: 4px; flex: none;
+    border: 1px solid var(--line-strong);
+    display: flex; align-items: center; justify-content: center;
+    font: 600 12px/1 var(--font-ui);
+  }
+  .sw-hex { font: 600 12px/1.3 var(--font-mono); color: var(--text-1); }
+  .sw-role { font: 11.5px/1.35 var(--font-ui); color: var(--text-3); }
+
+  .spec { display: flex; align-items: baseline; gap: 20px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+  .spec:last-child { border-bottom: 0; }
+  .spec-label { width: 150px; flex: none; font: 10.5px/1.4 var(--font-mono); color: var(--text-3); }
+  .spec-sample { color: var(--text-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ix-stacks { margin-top: 14px; font: 11.5px/1.7 var(--font-mono); color: var(--text-3); }
+
+  .pr-row { display: flex; gap: 20px; padding: 13px 0; border-top: 1px solid var(--line); }
+  .pr-row:first-of-type { border-top: 0; }
+  .pr-lead { width: 230px; flex: none; font: 600 13px/1.5 var(--font-ui); color: var(--text-1); }
+  .pr-body { font: 13px/1.6 var(--font-ui); color: var(--text-2); max-width: 660px; }
+
+  a.scr-row { display: flex; align-items: baseline; gap: 16px; padding: 13px 10px; border-top: 1px solid var(--line); border-radius: 6px; color: inherit; }
+  a.scr-row:first-of-type { border-top: 0; }
+  a.scr-row:hover { background: var(--hover); text-decoration: none; }
+  .scr-file { width: 178px; flex: none; font: 600 12px/1.5 var(--font-mono); color: var(--accent); }
+  .scr-desc { flex: 1; font: 12.5px/1.55 var(--font-ui); color: var(--text-2); min-width: 0; }
+  .scr-tags { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; width: 250px; flex: none; }
+  .scr-tags .chip { height: 18px; font-size: 9.5px; }
+
+  .avoid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px; list-style: none; }
+  .avoid li { display: flex; gap: 9px; padding: 7px 0; font: 12.5px/1.5 var(--font-ui); color: var(--text-2); border-bottom: 1px solid var(--line); }
+  .avoid li .icon { color: var(--text-3); margin-top: 2px; }
+
+  .ix-foot { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line); font: 11.5px/1.7 var(--font-ui); color: var(--text-3); }
+  .ix-foot .mono { color: var(--text-2); }
+
+  @media (max-width: 880px) {
+    .pal-grid, .avoid { grid-template-columns: 1fr; }
+    .pr-row { flex-direction: column; gap: 4px; }
+    a.scr-row { flex-wrap: wrap; }
+    .scr-tags { justify-content: flex-start; width: auto; }
+  }
+</style>
+<script>
+(function(){try{var t=localStorage.getItem('caliper-theme');
+if(t!=='light'&&t!=='dark'){t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'}
+document.documentElement.dataset.theme=t}catch(e){}})();
+</script>
+</head>
+<body>
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+  <symbol id="i-sun" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.8M8 12.7v1.8M1.5 8h1.8M12.7 8h1.8M3.4 3.4l1.3 1.3M11.3 11.3l1.3 1.3M12.6 3.4l-1.3 1.3M4.7 11.3l-1.3 1.3"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.2 9.7A5.8 5.8 0 1 1 6.3 2.8a4.6 4.6 0 0 0 6.9 6.9Z"/></symbol>
+  <symbol id="i-x" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m4 4 8 8M12 4l-8 8"/></symbol>
+</svg>
+
+<div class="theme-toggle float" role="group" aria-label="Тема">
+  <button type="button" data-set-theme="dark"><svg class="icon icon-sm"><use href="#i-moon"/></svg>Dark</button>
+  <button type="button" data-set-theme="light"><svg class="icon icon-sm"><use href="#i-sun"/></svg>Light</button>
+</div>
+
+<div class="ix-wrap">
+
+  <header class="ix-head">
+    <div>
+      <div class="ix-mark">Caliper</div>
+      <div class="ix-mark-sub">направление UI · SQLite editor · Tauri 2 · macOS / Windows / Linux</div>
+      <p class="ix-tagline">Плоский инструментальный интерфейс: структура нарисована волосяными линиями и тремя уровнями поверхности, один петрольный акцент для интерактива, системная типографика с моноширинными числами. Обе темы собираются из одного набора токенов.</p>
+    </div>
+  </header>
+
+  <section class="ix-sec">
+    <h2>Палитра</h2>
+    <div class="pal-grid">
+      <div class="pal-col">
+        <h3>Dark — графит</h3>
+        <div class="sw"><span class="sw-chip" style="background:#15191A"></span><div><div class="sw-hex">#15191A</div><div class="sw-role">bg-app — рабочая область, грид</div></div></div>
+        <div class="sw"><span class="sw-chip" style="background:#1B2022"></span><div><div class="sw-hex">#1B2022</div><div class="sw-role">bg-panel — сайдбар, тулбары, меню</div></div></div>
+        <div class="sw"><span class="sw-chip" style="background:#22282A"></span><div><div class="sw-hex">#22282A</div><div class="sw-role">bg-surface — поля ввода, шапка грида</div></div></div>
+        <div class="sw"><span class="sw-chip" style="background:#101415"></span><div><div class="sw-hex">#101415</div><div class="sw-role">bg-inset — SQL-редактор</div></div></div>
+        <div class="sw"><span class="sw-chip" style="background:#272E30"></span><div><div class="sw-hex">#272E30</div><div class="sw-role">line — волосяные линии</div></div></div>
+        <div class="sw"><span class="sw-chip" style="background:#1B2022;color:#DDE4E2">Aa</span><div><div class="sw-hex">#DDE4E2</div><div class="sw-role">text-1 — данные</div></div></div>
+        <div class="sw"><span class="sw-chip" style="background:#1B2022;color:#9AA7A4">Aa</span><div><div class="sw-hex">#9AA7A4</div><div class="sw-role">text-2 — подписи</div></div></div>
+        <div class="sw"><span class="sw-chip" style="background:#1B2022;color:#53C7B4">Aa</span><div><div class="sw-hex">#53C7B4</div><div class="sw-role">accent «петроль» — интерактив, выделение</div></div></div>
+        <div class="sw"><span class="sw-chip" style="background:#1B2022;color:#F0887A">Aa</span><div><div class="sw-hex">#F0887A</div><div class="sw-role">error — только ошибки</div></div></div>
+        <div class="sw"><span class="sw-chip" style="background:#1B2022;color:#D9A85B">Aa</span><div><div class="sw-hex">#D9A85B</div><div class="sw-role">warn — предупреждения, несохранённое</div></div></div>
+      </div>
+      <div class="pal-col">
+        <h3>Light — анодированное серебро</h3>
+        <div class="sw"><span class="sw-chip" style="background:#FFFFFF"></span><div><div class="sw-hex">#FFFFFF</div><div class="sw-role">bg-app — рабочая область, грид</div></div></div>
+        <div class="sw"><span class="sw-chip" style="background:#F4F6F5"></span><div><div class="sw-hex">#F4F6F5</div><div class="sw-role">bg-panel — сайдбар, тулбары, меню</div></div></div>
+        <div class="sw"><span class="sw-chip" style="background:#EBEFED"></span><div><div class="sw-hex">#EBEFED</div><div class="sw-role">bg-surface — поля ввода, шапка грида</div></div></div>
+        <div class="sw"><span class="sw-chip" style="background:#F7F9F8"></span><div><div class="sw-hex">#F7F9F8</div><div class="sw-role">bg-inset — SQL-редактор</div></div></div>
+        <div class="sw"><span class="sw-chip" style="background:#E3E8E6"></span><div><div class="sw-hex">#E3E8E6</div><div class="sw-role">line — волосяные линии</div></div></div>
+        <div class="sw"><span class="sw-chip" style="background:#FFFFFF;color:#1C2624">Aa</span><div><div class="sw-hex">#1C2624</div><div class="sw-role">text-1 — данные</div></div></div>
+        <div class="sw"><span class="sw-chip" style="background:#FFFFFF;color:#566461">Aa</span><div><div class="sw-hex">#566461</div><div class="sw-role">text-2 — подписи</div></div></div>
+        <div class="sw"><span class="sw-chip" style="background:#FFFFFF;color:#0C6D60">Aa</span><div><div class="sw-hex">#0C6D60</div><div class="sw-role">accent «петроль» — интерактив, выделение</div></div></div>
+        <div class="sw"><span class="sw-chip" style="background:#FFFFFF;color:#B23A2C">Aa</span><div><div class="sw-hex">#B23A2C</div><div class="sw-role">error — только ошибки</div></div></div>
+        <div class="sw"><span class="sw-chip" style="background:#FFFFFF;color:#8F6415">Aa</span><div><div class="sw-hex">#8F6415</div><div class="sw-role">warn — предупреждения, несохранённое</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ix-sec">
+    <h2>Типографика — системные стеки, без CDN</h2>
+    <div class="spec"><span class="spec-label">UI · 15 / 600</span><span class="spec-sample" style="font:600 15px/1.4 var(--font-ui)">Import CSV into shop.db</span></div>
+    <div class="spec"><span class="spec-label">UI · 13 — база</span><span class="spec-sample" style="font:13px/1.45 var(--font-ui)">Users — 12,408 rows · showing 1–50</span></div>
+    <div class="spec"><span class="spec-label">UI · 12.5 — грид</span><span class="spec-sample" style="font:12.5px/1.4 var(--font-ui)">ada.kowalczyk@example.com</span></div>
+    <div class="spec"><span class="spec-label">UI · 11 — мета</span><span class="spec-sample" style="font:11px/1.4 var(--font-ui);color:var(--text-2)">Editing users.email · ⏎ save · Esc cancel</span></div>
+    <div class="spec"><span class="spec-label">Mono · 13 — SQL</span><span class="spec-sample" style="font:13px/1.6 var(--font-mono)"><span style="color:var(--accent)">SELECT</span> * <span style="color:var(--accent)">FROM</span> users <span style="color:var(--accent)">LIMIT</span> 50;</span></div>
+    <div class="spec"><span class="spec-label">Mono · 12 — данные</span><span class="spec-sample" style="font:12px/1.4 var(--font-mono);font-variant-numeric:tabular-nums">2026-10-04 07:12:58 · 1,284.50</span></div>
+    <div class="spec"><span class="spec-label">Mono · 10.5 — типы</span><span class="spec-sample" style="font:10.5px/1.4 var(--font-mono);color:var(--text-3)">INTEGER · TEXT · BLOB (1.2 KB)</span></div>
+    <div class="ix-stacks">
+      UI:&nbsp; -apple-system / SF Pro Text · Segoe UI · Ubuntu / Cantarell<br>
+      Code:&nbsp; ui-monospace / SF Mono · Cascadia Code · JetBrains Mono · Menlo · Consolas
+    </div>
+  </section>
+
+  <section class="ix-sec">
+    <h2>Принципы</h2>
+    <div class="pr-row"><div class="pr-lead">Грид — главный герой</div><p class="pr-body">Максимум площади отдаётся данным: тайтлбар, сайдбар и статус-бар вместе занимают меньше пятой части высоты окна. Всё остальное — поле таблицы.</p></div>
+    <div class="pr-row"><div class="pr-lead">Волосяная иерархия</div><p class="pr-body">Структуру рисуют линии 1px и три уровня поверхности — без единой тени в статике. Тень разрешена только всплывающим слоям: меню, диалоги, тосты.</p></div>
+    <div class="pr-row"><div class="pr-lead">Числа не врут</div><p class="pr-body">Все числа, даты и суммы — моноширинные с tabular-nums, колонки выравниваются по разрядам. Выполняемый SQL виден в статус-баре: инструмент не прячет, что делает.</p></div>
+    <div class="pr-row"><div class="pr-lead">Один акцент</div><p class="pr-body">Петроль — только для интерактива и выделения. Красный — ошибки, янтарный — предупреждения и несохранённые изменения. Никакой радуги статусов в ячейках.</p></div>
+    <div class="pr-row"><div class="pr-lead">Спокойная плотность</div><p class="pr-body">Строка грида 28px, базовый шрифт 13px, шаг сетки 4px. Плотно, как в DataGrip, но тихо: без анимационного шума и декора. Инструмент для работы на годы.</p></div>
+  </section>
+
+  <section class="ix-sec">
+    <h2>Экраны</h2>
+    <a class="scr-row" href="main-window.html">
+      <span class="scr-file">main-window.html</span>
+      <span class="scr-desc">Главное окно: дерево схемы (Tables / Views / Indexes / Triggers, колонки с типами и PK), вкладки таблиц, фильтры по колонкам, грид с правкой ячейки, пагинация, статус-бар с запросом, контекстное меню.</span>
+      <span class="scr-tags"><span class="chip">editing</span><span class="chip">selected</span><span class="chip">NULL</span><span class="chip">BLOB</span><span class="chip">menu</span></span>
+    </a>
+    <a class="scr-row" href="sql-tab.html">
+      <span class="scr-file">sql-tab.html</span>
+      <span class="scr-desc">SQL-вкладка: редактор с подсветкой и номерами строк, Run по ⌘/Ctrl+Enter, грид результата с таймингом, история запросов. Второй фрейм — состояние ошибки «near "FROM": syntax error».</span>
+      <span class="scr-tags"><span class="chip">success</span><span class="chip">error</span><span class="chip">history</span></span>
+    </a>
+    <a class="scr-row" href="import-dialog.html">
+      <span class="scr-file">import-dialog.html</span>
+      <span class="scr-desc">Импорт CSV: выбранный файл, разделитель и кодировка, превью первых 5 строк, целевая таблица (новая из имени файла / существующая), маппинг колонок, прогресс и откат транзакции.</span>
+      <span class="scr-tags"><span class="chip">preview</span><span class="chip">mapping</span><span class="chip">progress</span><span class="chip">rollback</span></span>
+    </a>
+    <a class="scr-row" href="empty-state.html">
+      <span class="scr-file">empty-state.html</span>
+      <span class="scr-desc">Окно без БД: зона drag&amp;drop (состояние переноса — при наведении), кнопка «Open Database…», недавние файлы с путями и временем, ошибка открытия не-SQLite файла.</span>
+      <span class="scr-tags"><span class="chip">drop</span><span class="chip">recents</span><span class="chip">error</span></span>
+    </a>
+  </section>
+
+  <section class="ix-sec">
+    <h2>Чего сознательно избегаем</h2>
+    <ul class="avoid">
+      <li><svg class="icon icon-sm"><use href="#i-x"/></svg>Градиентов, стеклянных блюров, «глубоких» теней у статики</li>
+      <li><svg class="icon icon-sm"><use href="#i-x"/></svg>Цветных статус-чипов в каждой ячейке (радуга DB Browser)</li>
+      <li><svg class="icon icon-sm"><use href="#i-x"/></svg>Карточных сеток и одинаковых скруглённых «коробок»</li>
+      <li><svg class="icon icon-sm"><use href="#i-x"/></svg>ALL-CAPS надзаголовков и декоративных ярлыков</li>
+      <li><svg class="icon icon-sm"><use href="#i-x"/></svg>Чистого чёрного #000 и кислотного неона на тёмной теме</li>
+      <li><svg class="icon icon-sm"><use href="#i-x"/></svg>Вкладок-лесов и перегруженных диалогов на десять шагов</li>
+      <li><svg class="icon icon-sm"><use href="#i-x"/></svg>Больше одного акцентного цвета</li>
+      <li><svg class="icon icon-sm"><use href="#i-x"/></svg>Анимационного шума: движение только как ответ на действие</li>
+    </ul>
+  </section>
+
+  <footer class="ix-foot">
+    Файлы: <span class="mono">tokens.css</span> — все токены обеих тем, <span class="mono">shared.css</span> — общие компоненты; одна пара на все экраны. «Shale» — кодовое имя приложения в тайтлбарах. Traffic lights — macOS-иллюстрация; на Windows/Linux будет нативный хром окна, а ⌘ заменяется на Ctrl. Выбор темы сохраняется между страницами.
+  </footer>
+
+</div>
+
+<script>
+document.addEventListener('click',function(e){var b=e.target.closest('[data-set-theme]');if(!b)return;
+document.documentElement.dataset.theme=b.dataset.setTheme;
+try{localStorage.setItem('caliper-theme',b.dataset.setTheme)}catch(_){}} );
+</script>
+</body>
+</html>

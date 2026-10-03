@@ -1,0 +1,66 @@
+# Сборка дистрибутивов Ore под macOS / Windows / Linux.
+# Запуск: git tag v0.1.0 && git push --tags
+# Артефакты прикладываются к черновику GitHub Release.
+# macOS-сборки без подписи — Gatekeeper покажет предупреждение (см. PRD R3).
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest # Apple Silicon
+            args: --target aarch64-apple-darwin
+          - platform: macos-latest # Intel
+            args: --target x86_64-apple-darwin
+          - platform: windows-latest
+            args: ""
+          - platform: ubuntu-22.04
+            args: ""
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Install frontend dependencies
+        run: npm install
+        working-directory: app
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: app
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'dev-build' }}
+          releaseName: "Ore ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}"
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}

@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Caliper — импорт CSV</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="shared.css">
+<style>
+  /* --- только страница импорта --- */
+  .file-row { display: flex; align-items: center; gap: 9px; }
+  .file-row .icon { color: var(--text-2); }
+  .file-name { font: 600 12.5px/1.3 var(--font-ui); color: var(--text-1); }
+  .file-meta { font: 11px/1.3 var(--font-mono); color: var(--text-3); }
+
+  .controls-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+  .controls-row label { font: 12px/1 var(--font-ui); color: var(--text-2); }
+
+  .im-preview table.grid th, .im-preview table.grid td { height: 24px; font-size: 11.5px; }
+  .im-preview .head-row th { font-size: 11px; }
+  .pv-caption { margin-top: 8px; font: 11px/1.4 var(--font-mono); color: var(--text-3); }
+
+  .radio-block { margin-bottom: 8px; }
+  .radio .inline-input { height: 22px; width: 130px; padding: 0 7px; font: 11.5px var(--font-mono); }
+  .radio-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  .map-grid { margin-top: 12px; border: 1px solid var(--line); border-radius: var(--r2); overflow: hidden; }
+  .map-row {
+    display: grid; grid-template-columns: 128px 18px 1fr 66px; gap: 10px; align-items: center;
+    padding: 5px 10px; background: var(--bg-app);
+  }
+  .map-row + .map-row { border-top: 1px solid var(--line); }
+  .map-src { font: 12px/1.3 var(--font-mono); color: var(--text-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .map-src.is-unmapped { color: var(--text-3); }
+  .map-arrow { color: var(--text-3); width: 12px; height: 12px; }
+  .map-row .select { width: 100%; }
+  .map-row .select select { width: 100%; font-size: 11.5px; }
+  .map-type { font: 10.5px/1 var(--font-mono); color: var(--text-3); text-align: right; white-space: nowrap; }
+  .map-hint { margin-top: 8px; font: 11px/1.4 var(--font-ui); color: var(--text-3); }
+
+  .state-panel { width: 680px; max-width: calc(100vw - 48px); }
+  .state-row { display: flex; align-items: center; gap: 12px; }
+  .state-row .icon-lg { width: 18px; height: 18px; }
+  .state-row.is-ok .icon { color: var(--accent); }
+  .state-row.is-fail .icon { color: var(--error); }
+  .state-text { flex: 1; min-width: 0; }
+  .state-title { font: 500 12.5px/1.4 var(--font-ui); color: var(--text-1); }
+  .state-sub { font: 11px/1.4 var(--font-mono); color: var(--text-3); }
+  .state-sub.err { color: var(--error); }
+  .state-row .progress { flex: 1.2; }
+  .stage-note { max-width: 680px; width: 100%; margin: 0 auto 14px; font: 12px/1.5 var(--font-ui); color: var(--text-3); }
+  .stage-note b { color: var(--text-2); }
+  .stage-col { flex-direction: column; padding-top: 28px; }
+</style>
+<script>
+(function(){try{var t=localStorage.getItem('caliper-theme');
+if(t!=='light'&&t!=='dark'){t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'}
+document.documentElement.dataset.theme=t}catch(e){}})();
+</script>
+</head>
+<body>
+
+<!-- ===== SVG-спрайт (общий для всех макетов) ===== -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+  <symbol id="i-chev-r" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5 10.5 8 6 12.5"/></symbol>
+  <symbol id="i-chev-d" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 6 8 10.5 12.5 6"/></symbol>
+  <symbol id="i-chev-l" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3.5 5.5 8 10 12.5"/></symbol>
+  <symbol id="i-chev-u" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 10 8 5.5 12.5 10"/></symbol>
+  <symbol id="i-chevs-l" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 3 4 8l4.5 5"/><path d="M13 3 8.5 8 13 13"/></symbol>
+  <symbol id="i-chevs-r" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 3 12 8l-4.5 5"/><path d="M3 3l4.5 5L3 13"/></symbol>
+  <symbol id="i-db" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="8" cy="3.8" rx="5.5" ry="2.3"/><path d="M2.5 3.8v8.4c0 1.27 2.46 2.3 5.5 2.3s5.5-1.03 5.5-2.3V3.8"/><path d="M2.5 8c0 1.27 2.46 2.3 5.5 2.3S13.5 9.27 13.5 8"/></symbol>
+  <symbol id="i-table" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2.5" width="12" height="11" rx="1"/><path d="M2 6h12M6.5 6v7.5"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 8C3.4 4.9 5.9 3.5 8 3.5s4.6 1.4 6.5 4.5c-1.9 3.1-4.4 4.5-6.5 4.5S3.4 11.1 1.5 8Z"/><circle cx="8" cy="8" r="1.9"/></symbol>
+  <symbol id="i-list" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 4H14M5.5 8H14M5.5 12H14"/><path d="M2.5 4h.01M2.5 8h.01M2.5 12h.01"/></symbol>
+  <symbol id="i-zap" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8.7 1.8 3.5 9h3.8l-.9 5.2L11.9 7H8.1l.6-5.2Z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.4"/><path d="m10.4 10.4 3.6 3.6"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11L9.6 8.6v4.2l-3.2 1.7V8.6L2.5 3.5Z"/></symbol>
+  <symbol id="i-x" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m4 4 8 8M12 4l-8 8"/></symbol>
+  <symbol id="i-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m3 8.5 3.5 3.5L13 4.5"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v10M3 8h10"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9.7 3.3 3 3L6.4 12.6 3 13l.4-3.4 6.3-6.3Z"/></symbol>
+  <symbol id="i-dots" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path fill="currentColor" stroke="none" d="M3.5 6.9a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 0 1 0-2.2Zm4.5 0a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 0 1 0-2.2Zm4.5 0a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 0 1 0-2.2Z"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1.2"/><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/></symbol>
+  <symbol id="i-braces" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.8 2.5c-1.6 0-1.9.9-1.9 2v1.7c0 .9-.5 1.5-1.4 1.8.9.3 1.4.9 1.4 1.8v1.7c0 1.1.3 2 1.9 2"/><path d="M10.2 2.5c1.6 0 1.9.9 1.9 2v1.7c0 .9.5 1.5 1.4 1.8-.9.3-1.4.9-1.4 1.8v1.7c0 1.1-.3 2-1.9 2"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="12" height="12" rx="1"/><path d="M2 6.5h12M2 10.5h12M6.5 2v12M10.5 2v12"/></symbol>
+  <symbol id="i-null" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.5"/><path d="M4.4 11.6 11.6 4.4"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.5"/><path d="M8 5.2V8l2.2 1.4"/></symbol>
+  <symbol id="i-play" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.2 3.5v9L12.6 8 5.2 3.5Z"/></symbol>
+  <symbol id="i-download" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5V10M5 7.5 8 10.5l3-3M3 13.5h10"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 10.5V3M5 5.5 8 2.5l3 3M3 13.5h10"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.6c0-.6.4-1 1-1h3l1.4 1.4H13c.6 0 1 .4 1 1v6c0 .6-.4 1-1 1H3c-.6 0-1-.4-1-1V4.6Z"/></symbol>
+  <symbol id="i-key" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.3" cy="8" r="2.6"/><path d="M7.9 8H14M11.3 8v2.4"/></symbol>
+  <symbol id="i-sort-d" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.5v9M4.8 9.3 8 12.5l3.2-3.2"/></symbol>
+  <symbol id="i-sort-u" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12.5v-9M4.8 6.7 8 3.5l3.2 3.2"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.8M8 12.7v1.8M1.5 8h1.8M12.7 8h1.8M3.4 3.4l1.3 1.3M11.3 11.3l1.3 1.3M12.6 3.4l-1.3 1.3M4.7 11.3l-1.3 1.3"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.2 9.7A5.8 5.8 0 1 1 6.3 2.8a4.6 4.6 0 0 0 6.9 6.9Z"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.2 14.6 13.4H1.4L8 2.2Z"/><path d="M8 6.6v3"/><path d="M8 11.5h.01"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.2 8A5.2 5.2 0 1 1 11.6 4.3"/><path d="M13.4 1.9v2.9h-2.9"/></symbol>
+  <symbol id="i-enter" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3.5V8c0 .83-.67 1.5-1.5 1.5H3.5"/><path d="M6.5 6 3.5 9.5l3 3.5"/></symbol>
+  <symbol id="i-code" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 4.5 2 8l3.5 3.5M10.5 4.5 14 8l-3.5 3.5"/></symbol>
+  <symbol id="i-file" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1.5H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V5.5L9 1.5Z"/><path d="M9 1.5v4h4"/></symbol>
+</svg>
+
+<div class="theme-toggle float" role="group" aria-label="Тема">
+  <button type="button" data-set-theme="dark"><svg class="icon icon-sm"><use href="#i-moon"/></svg>Dark</button>
+  <button type="button" data-set-theme="light"><svg class="icon icon-sm"><use href="#i-sun"/></svg>Light</button>
+</div>
+
+<!-- ======================================================================
+     ДИАЛОГ ИМПОРТА
+     ====================================================================== -->
+<div class="stage">
+  <div class="dialog">
+    <header class="dlg-head">
+      <svg class="icon" style="color:var(--text-2)"><use href="#i-upload"/></svg>
+      <span class="dlg-title">Import CSV into shop.db</span>
+      <span class="grow"></span>
+      <button class="icon-btn" title="Close (Esc)"><svg class="icon"><use href="#i-x"/></svg></button>
+    </header>
+
+    <div class="dlg-body">
+
+      <!-- Файл и параметры -->
+      <section class="dlg-sec">
+        <div class="dlg-sec-title">File</div>
+        <div class="file-row">
+          <svg class="icon icon-lg"><use href="#i-file"/></svg>
+          <div class="grow">
+            <div class="file-name">orders_oct.csv</div>
+            <div class="file-meta">~/Downloads/orders_oct.csv · 148.3 KB · 1,024 rows detected</div>
+          </div>
+          <button class="btn btn-ghost" style="height:24px">Replace…</button>
+        </div>
+        <div class="controls-row">
+          <label for="f-delim">Delimiter</label>
+          <span class="select"><select id="f-delim"><option>Comma ( , )</option><option>Semicolon ( ; )</option><option>Tab ( ⇥ )</option><option>Pipe ( | )</option></select><svg class="icon icon-sm"><use href="#i-chev-d"/></svg></span>
+          <label for="f-enc">Encoding</label>
+          <span class="select"><select id="f-enc"><option>UTF-8</option><option>UTF-16LE</option><option>Windows-1251</option><option>ISO-8859-1</option></select><svg class="icon icon-sm"><use href="#i-chev-d"/></svg></span>
+          <label class="check"><input type="checkbox" checked>First row is headers</label>
+        </div>
+      </section>
+
+      <!-- Превью -->
+      <section class="dlg-sec im-preview">
+        <div class="dlg-sec-title" style="display:flex;align-items:center;gap:8px">Preview — first 5 rows<span class="chip">header row</span></div>
+        <table class="grid" style="min-width:600px">
+          <colgroup><col style="width:84px"><col style="width:72px"><col style="width:150px"><col style="width:84px"><col style="width:88px"><col></colgroup>
+          <thead>
+            <tr class="head-row">
+              <th>order_id</th><th>user_id</th><th>placed_at</th><th style="text-align:right">total</th><th>status</th><th>coupon_code</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="c-id">9041</td><td class="c-id">3</td><td class="c-date">2026-10-02T09:14:00</td><td class="num">129.90</td><td>paid</td><td><span class="cellv">WELCOME10</span></td></tr>
+            <tr><td class="c-id">9042</td><td class="c-id">17</td><td class="c-date">2026-10-02T09:21:38</td><td class="num">54.00</td><td>paid</td><td></td></tr>
+            <tr><td class="c-id">9043</td><td class="c-id">3</td><td class="c-date">2026-10-02T10:05:12</td><td class="num">249.00</td><td>pending</td><td><span class="cellv">SAVE25</span></td></tr>
+            <tr><td class="c-id">9044</td><td class="c-id">42</td><td class="c-date">2026-10-02T10:41:57</td><td class="num">18.50</td><td>paid</td><td></td></tr>
+            <tr><td class="c-id">9045</td><td class="c-id">8</td><td class="c-date">2026-10-02T11:03:44</td><td class="num">310.00</td><td>paid</td><td><span class="cellv">SAVE25</span></td></tr>
+          </tbody>
+        </table>
+        <div class="pv-caption">showing 5 of 1,024 rows · empty coupon_code → NULL</div>
+      </section>
+
+      <!-- Куда импортировать -->
+      <section class="dlg-sec">
+        <div class="dlg-sec-title">Destination</div>
+        <div class="radio-block">
+          <label class="radio"><input type="radio" name="dst">
+            <span class="radio-row">New table — named
+              <input class="input mono inline-input" value="orders_oct" aria-label="New table name">
+              <span class="rmeta">from file name, editable</span>
+            </span>
+          </label>
+        </div>
+        <div class="radio-block">
+          <label class="radio"><input type="radio" name="dst" checked>
+            <span class="radio-row">Existing table —
+              <span class="select"><select aria-label="Target table"><option>orders (1,842 rows)</option><option>order_items</option><option>products</option></select><svg class="icon icon-sm"><use href="#i-chev-d"/></svg></span>
+              <span class="chip chip-accent">5 of 6 columns auto-matched</span>
+            </span>
+          </label>
+        </div>
+
+        <div class="map-grid">
+          <div class="map-row">
+            <span class="map-src">order_id</span><svg class="icon map-arrow"><use href="#i-chev-r"/></svg>
+            <span class="select"><select><option>id</option><option>user_id</option><option>placed_at</option><option>total</option><option>status</option><option>(— ignore —)</option></select><svg class="icon icon-sm"><use href="#i-chev-d"/></svg></span>
+            <span class="map-type">INTEGER</span>
+          </div>
+          <div class="map-row">
+            <span class="map-src">user_id</span><svg class="icon map-arrow"><use href="#i-chev-r"/></svg>
+            <span class="select"><select><option>user_id</option><option>id</option><option>placed_at</option><option>total</option><option>status</option><option>(— ignore —)</option></select><svg class="icon icon-sm"><use href="#i-chev-d"/></svg></span>
+            <span class="map-type">INTEGER</span>
+          </div>
+          <div class="map-row">
+            <span class="map-src">placed_at</span><svg class="icon map-arrow"><use href="#i-chev-r"/></svg>
+            <span class="select"><select><option>placed_at</option><option>id</option><option>user_id</option><option>total</option><option>status</option><option>(— ignore —)</option></select><svg class="icon icon-sm"><use href="#i-chev-d"/></svg></span>
+            <span class="map-type">TEXT</span>
+          </div>
+          <div class="map-row">
+            <span class="map-src">total</span><svg class="icon map-arrow"><use href="#i-chev-r"/></svg>
+            <span class="select"><select><option>total</option><option>id</option><option>user_id</option><option>placed_at</option><option>status</option><option>(— ignore —)</option></select><svg class="icon icon-sm"><use href="#i-chev-d"/></svg></span>
+            <span class="map-type">REAL</span>
+          </div>
+          <div class="map-row">
+            <span class="map-src">status</span><svg class="icon map-arrow"><use href="#i-chev-r"/></svg>
+            <span class="select"><select><option>status</option><option>id</option><option>user_id</option><option>placed_at</option><option>total</option><option>(— ignore —)</option></select><svg class="icon icon-sm"><use href="#i-chev-d"/></svg></span>
+            <span class="map-type">TEXT</span>
+          </div>
+          <div class="map-row">
+            <span class="map-src is-unmapped">coupon_code</span><svg class="icon map-arrow"><use href="#i-chev-r"/></svg>
+            <span class="select"><select><option>(— ignore —)</option><option>id</option><option>user_id</option><option>placed_at</option><option>total</option><option>status</option></select><svg class="icon icon-sm"><use href="#i-chev-d"/></svg></span>
+            <span class="map-type">no match</span>
+          </div>
+        </div>
+        <div class="map-hint">Matched automatically from headers — change any pair. Unmatched columns are ignored, not dropped.</div>
+      </section>
+
+    </div>
+
+    <footer class="dlg-foot">
+      <span class="footnote">1,024 rows · ~2 s · single transaction</span>
+      <span class="grow"></span>
+      <button class="btn btn-ghost">Cancel</button>
+      <button class="btn btn-primary">Import 1,024 rows</button>
+    </footer>
+  </div>
+</div>
+
+<!-- ======================================================================
+     СОСТОЯНИЯ ПРОГРЕССА
+     ====================================================================== -->
+<section class="stage stage-col" style="padding-top:0">
+  <p class="stage-note"><b>Состояния прогресса.</b> Импорт идёт одной транзакцией: при ошибке в любой строке откатывается целиком — ноль частично записанных данных.</p>
+
+  <div class="dialog state-panel">
+    <section class="dlg-sec">
+      <div class="dlg-sec-title">Importing…</div>
+      <div class="state-row">
+        <svg class="icon icon-lg" style="color:var(--text-2)"><use href="#i-upload"/></svg>
+        <div class="state-text">
+          <div class="state-title">Importing into orders…</div>
+          <div class="state-sub">orders_oct.csv · 645 / 1,024 rows</div>
+        </div>
+        <div class="progress" style="max-width:180px"><div class="progress-fill" style="width:63%"></div></div>
+        <button class="btn btn-ghost" style="height:24px">Cancel</button>
+      </div>
+    </section>
+
+    <section class="dlg-sec">
+      <div class="dlg-sec-title">Done</div>
+      <div class="state-row is-ok">
+        <svg class="icon icon-lg"><use href="#i-check"/></svg>
+        <div class="state-text">
+          <div class="state-title">Imported 1,024 rows into orders in 1.8 s</div>
+          <div class="state-sub">1 column ignored (coupon_code) · 0 skipped</div>
+        </div>
+        <span class="chip chip-accent">1,024 rows</span>
+      </div>
+    </section>
+
+    <section class="dlg-sec">
+      <div class="dlg-sec-title">Failed — rolled back</div>
+      <div class="state-row is-fail">
+        <svg class="icon icon-lg"><use href="#i-alert"/></svg>
+        <div class="state-text">
+          <div class="state-title">Import failed at row 47: cannot store 'n/a' in total (REAL)</div>
+          <div class="state-sub err">transaction rolled back · 0 rows written · fix the file and retry</div>
+        </div>
+      </div>
+    </section>
+  </div>
+</section>
+
+<!-- ===== Мок-заметки (не часть продукта) ===== -->
+<aside class="mockbar">
+  <span class="m-label">Макет:</span>
+  <span class="m-item"><b>диалог</b> — файл, разделитель, кодировка, превью 5 строк</span>
+  <span class="m-item"><b>маппинг</b> — автосопоставление по заголовкам, coupon_code без пары</span>
+  <span class="m-item"><b>прогресс</b> — три состояния ниже (прокрутите страницу)</span>
+  <span class="grow"></span>
+  <div class="theme-toggle" role="group" aria-label="Тема">
+    <button type="button" data-set-theme="dark"><svg class="icon icon-sm"><use href="#i-moon"/></svg>Dark</button>
+    <button type="button" data-set-theme="light"><svg class="icon icon-sm"><use href="#i-sun"/></svg>Light</button>
+  </div>
+</aside>
+
+<script>
+document.addEventListener('click',function(e){var b=e.target.closest('[data-set-theme]');if(!b)return;
+document.documentElement.dataset.theme=b.dataset.setTheme;
+try{localStorage.setItem('caliper-theme',b.dataset.setTheme)}catch(_){}} );
+</script>
+</body>
+</html>

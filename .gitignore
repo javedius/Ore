@@ -1,0 +1,13 @@
+# Node / Vite
+node_modules/
+app/dist/
+
+# Rust / Tauri
+app/src-tauri/target/
+app/src-tauri/gen/schemas/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log

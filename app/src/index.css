@@ -1,0 +1,431 @@
+/* ==========================================================================
+   SQLite editor — клей поверх Caliper tokens/shared.
+   Здесь: адаптация каркаса под реальное окно (без мок-панели),
+   state-классы, которых не было в статике, и стили SQL-вью.
+   ========================================================================== */
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+/* В приложении нет мок-панели — окно занимает весь вьюпорт */
+.app {
+  height: 100vh;
+}
+
+.tab-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.empty-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+  font: 12.5px/1 var(--font-ui);
+  min-height: 120px;
+}
+
+/* Drag-over у зоны импорта (в статике было только :hover) */
+.dropzone {
+  cursor: pointer;
+}
+.dropzone.is-over {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+.dropzone.is-over .dz-icon {
+  color: var(--accent);
+}
+.dropzone .dz-icon {
+  width: 34px;
+  height: 34px;
+  color: var(--text-3);
+  margin-bottom: 10px;
+}
+.dropzone .dz-title {
+  font: 600 16px/1.35 var(--font-ui);
+  color: var(--text-1);
+}
+.dropzone .dz-sub {
+  font: 11.5px/1.6 var(--font-mono);
+  color: var(--text-3);
+  margin-top: 4px;
+}
+.dropzone .dz-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+/* ==========================================================================
+   Empty state (перенос из макета)
+   ========================================================================== */
+
+.es-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 36px 24px;
+  overflow: auto;
+}
+.es-col {
+  width: 620px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.dropzone {
+  border: 1.5px dashed var(--line-strong);
+  border-radius: var(--r3);
+  padding: 42px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.dropzone:hover,
+.dropzone.is-over {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+.dropzone:hover .dz-icon,
+.dropzone.is-over .dz-icon {
+  color: var(--accent);
+}
+.recents {
+  border: 1px solid var(--line);
+  border-radius: var(--r3);
+  overflow: hidden;
+  background: var(--bg-panel);
+}
+.recents-head {
+  display: flex;
+  align-items: center;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--line);
+  font: 600 11px/1 var(--font-ui);
+  color: var(--text-3);
+  user-select: none;
+}
+.recent-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 14px;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+.recent-item:hover {
+  background: var(--hover);
+}
+.recent-item + .recent-item {
+  border-top: 1px solid var(--line);
+}
+.recent-icon {
+  color: var(--text-3);
+  flex: none;
+}
+.recent-name {
+  font: 500 12.5px/1.35 var(--font-ui);
+  color: var(--text-1);
+}
+.recent-path {
+  font: 11px/1.35 var(--font-mono);
+  color: var(--text-3);
+}
+.recent-meta {
+  margin-left: auto;
+  flex: none;
+  text-align: right;
+  font: 11px/1.4 var(--font-mono);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.recent-item.is-missing {
+  opacity: 0.55;
+}
+.recent-item.is-missing .recent-meta {
+  color: var(--warn);
+  opacity: 1;
+}
+.es-hint {
+  text-align: center;
+  font: 11.5px/1.5 var(--font-ui);
+  color: var(--text-3);
+}
+
+/* ==========================================================================
+   SQL-вью (перенос из макета sql-tab)
+   ========================================================================== */
+
+.sql-layout {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.ed-pane {
+  flex: 1 1 54%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sql-input {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: var(--bg-inset);
+  color: var(--text-1);
+  font: 13px/1.6 var(--font-mono);
+  padding: 12px 14px;
+  caret-color: var(--accent);
+  white-space: pre;
+}
+.sql-input::placeholder {
+  color: var(--text-3);
+}
+.sql-input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.result {
+  flex: 0 0 44%;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line-strong);
+}
+.result-grid {
+  flex: 1;
+  overflow: auto;
+}
+
+.rtabs {
+  height: 30px;
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 0 8px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--line);
+  user-select: none;
+}
+.rtab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  font: 500 12px/1 var(--font-ui);
+  color: var(--text-2);
+  position: relative;
+}
+.rtab:hover {
+  color: var(--text-1);
+}
+.rtab.active {
+  color: var(--text-1);
+}
+.rtab.active::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -1px;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 1px;
+}
+.rtab .cnt {
+  font: 500 10px/1 var(--font-mono);
+  color: var(--text-3);
+}
+.rtabs .grow {
+  flex: 1;
+}
+.rtabs .resmeta {
+  align-self: center;
+  font: 11px/1 var(--font-mono);
+  color: var(--text-3);
+  margin-right: 8px;
+}
+
+.rail {
+  width: 244px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--line);
+}
+.rail-head {
+  height: 34px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 6px 0 12px;
+  border-bottom: 1px solid var(--line);
+  font: 600 11px/1 var(--font-ui);
+  color: var(--text-2);
+  user-select: none;
+}
+.rail-head .icon {
+  color: var(--text-3);
+}
+.hist-list {
+  flex: 1;
+  overflow: auto;
+}
+.hist-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+.hist-item:hover {
+  background: var(--hover);
+}
+.hist-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 10.5px/1 var(--font-mono);
+  color: var(--text-3);
+}
+.hist-sql {
+  font: 11px/1.45 var(--font-mono);
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hist-meta {
+  font: 10.5px/1.3 var(--font-ui);
+  color: var(--text-3);
+}
+.hist-meta.err {
+  color: var(--error);
+}
+
+.msg-pane {
+  flex: 1;
+  overflow: auto;
+  padding: 18px 20px;
+}
+.msg-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 600 13px/1.3 var(--font-ui);
+  color: var(--error);
+  margin-bottom: 12px;
+}
+.msg-box {
+  font: 12.5px/1.6 var(--font-mono);
+  color: var(--text-1);
+  background: var(--bg-inset);
+  border: 1px solid var(--line);
+  border-radius: var(--r2);
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  white-space: pre-wrap;
+}
+.msg-hint {
+  font: 12px/1.5 var(--font-ui);
+  color: var(--text-2);
+}
+.msg-hint b {
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+.btn[disabled] {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.icon-btn[disabled] {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+/* Числовые/датные td в гриде результатов SQL тоже выравниваем как в макете */
+.result-grid td .cellv {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   Модальный диалог импорта CSV
+   ========================================================================== */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(4, 8, 8, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.import-dialog {
+  width: 760px;
+}
+
+.import-dialog .dlg-body {
+  max-height: calc(100vh - 200px);
+}
+
+.preview-table {
+  max-height: 170px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r2);
+}
+
+.map-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.map-row .map-src {
+  width: 170px;
+  flex: none;
+  font: 12px/1.3 var(--font-mono);
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-row .map-arrow {
+  color: var(--text-3);
+}
+
+.dlg-sec .dlg-sec-title .grow,
+.import-dialog .grow {
+  flex: 1;
+}
