@@ -78,11 +78,16 @@ pub struct DbThread {
 pub struct InterruptGuard {
     handle: Mutex<Option<InterruptHandle>>,
     busy: AtomicBool,
+    read_only: AtomicBool,
 }
 
 impl InterruptGuard {
     fn set(&self, handle: Option<InterruptHandle>) {
         *self.handle.lock().unwrap() = handle;
+    }
+
+    fn set_read_only(&self, ro: bool) {
+        self.read_only.store(ro, Ordering::SeqCst);
     }
 
     fn set_busy(&self, busy: bool) {
@@ -121,6 +126,7 @@ pub fn spawn_db_thread() -> DbThread {
     let interrupt: Arc<InterruptGuard> = Arc::new(InterruptGuard {
         handle: Mutex::new(None),
         busy: AtomicBool::new(false),
+        read_only: AtomicBool::new(false),
     });
     let int = Arc::clone(&interrupt);
 
@@ -130,12 +136,15 @@ pub fn spawn_db_thread() -> DbThread {
             let mut conn: Option<Connection> = None;
             // Row counts per object, invalidated on any write through the app.
             let mut counts: HashMap<String, i64> = HashMap::new();
+            let mut read_only = false;
             while let Some(req) = rx.blocking_recv() {
                 match req {
                     DbRequest::Open { path, reply } => {
                         match open_connection(&path) {
-                            Ok((c, info)) => {
+                            Ok((c, info, ro)) => {
                                 int.set(Some(c.get_interrupt_handle()));
+                                int.set_read_only(ro);
+                                read_only = ro;
                                 let _ = conn.insert(c);
                                 counts.clear();
                                 let _ = reply.send(Ok(info));
@@ -148,6 +157,7 @@ pub fn spawn_db_thread() -> DbThread {
                     }
                     DbRequest::Close { reply } => {
                         int.set(None);
+                        int.set_read_only(false);
                         conn = None;
                         counts.clear();
                         let _ = reply.send(Ok(()));
@@ -169,21 +179,37 @@ pub fn spawn_db_thread() -> DbThread {
                         counts.clear();
                     }
                     DbRequest::UpdateCell { edit, reply } => {
-                        with_conn(&mut conn, reply, |c| crate::edit::update_cell_impl(c, &edit));
+                        if read_only {
+                            let _ = reply.send(Err(READ_ONLY_MSG.into()));
+                        } else {
+                            with_conn(&mut conn, reply, |c| crate::edit::update_cell_impl(c, &edit));
+                        }
                     }
                     DbRequest::InsertRow { table, reply } => {
-                        with_conn(&mut conn, reply, |c| crate::edit::insert_row_impl(c, &table));
-                        counts.clear();
+                        if read_only {
+                            let _ = reply.send(Err(READ_ONLY_MSG.into()));
+                        } else {
+                            with_conn(&mut conn, reply, |c| crate::edit::insert_row_impl(c, &table));
+                            counts.clear();
+                        }
                     }
                     DbRequest::DeleteRow { table, rowid, reply } => {
-                        with_conn(&mut conn, reply, |c| crate::edit::delete_row_impl(c, &table, rowid));
-                        counts.clear();
+                        if read_only {
+                            let _ = reply.send(Err(READ_ONLY_MSG.into()));
+                        } else {
+                            with_conn(&mut conn, reply, |c| crate::edit::delete_row_impl(c, &table, rowid));
+                            counts.clear();
+                        }
                     }
                     DbRequest::ImportCsv { args, reply } => {
-                        int.set_busy(true);
-                        with_conn(&mut conn, reply, |c| crate::csv_io::import_csv_impl(c, &args).map(|r| r.imported));
-                        int.set_busy(false);
-                        counts.clear();
+                        if read_only {
+                            let _ = reply.send(Err(READ_ONLY_MSG.into()));
+                        } else {
+                            int.set_busy(true);
+                            with_conn(&mut conn, reply, |c| crate::csv_io::import_csv_impl(c, &args).map(|r| r.imported));
+                            int.set_busy(false);
+                            counts.clear();
+                        }
                     }
                     DbRequest::ExportObject { args, reply } => {
                         int.set_busy(true);
@@ -210,15 +236,32 @@ fn with_conn<T>(
     let _ = reply.send(result);
 }
 
-fn open_connection(path: &str) -> Result<(Connection, DbInfo), String> {
+const READ_ONLY_MSG: &str =
+    "Database is open in read-only mode — the file is locked by another program or sits on read-only media";
+
+fn open_connection(path: &str) -> Result<(Connection, DbInfo, bool), String> {
     if !Path::new(path).exists() {
         return Err(format!("File not found: {}", path));
     }
-    let conn = Connection::open_with_flags(
+
+    // Try read-write first; if the file is locked by another program or sits
+    // on read-only media, fall back to a read-only connection so the user
+    // can still view the data (US-1).
+    let mut read_only = false;
+    let conn = match Connection::open_with_flags(
         path,
         OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NOFOLLOW,
-    )
-    .map_err(db_err)?;
+    ) {
+        Ok(c) => c,
+        Err(_) => {
+            read_only = true;
+            Connection::open_with_flags(
+                path,
+                OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NOFOLLOW,
+            )
+            .map_err(db_err)?
+        }
+    };
     conn.busy_timeout(Duration::from_secs(5)).map_err(db_err)?;
 
     // The first query fails with NOTADB if the file is not a SQLite database
@@ -230,6 +273,14 @@ fn open_connection(path: &str) -> Result<(Connection, DbInfo), String> {
         .query_row("PRAGMA journal_mode", [], |r| r.get(0))
         .unwrap_or_default();
     let size_bytes = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+
+    // Write probe: opening a write file descriptor catches read-only media
+    // and permission bits. (BEGIN IMMEDIATE would succeed even on a
+    // read-only file because it writes nothing until pages change.)
+    if !read_only && std::fs::OpenOptions::new().write(true).open(path).is_err() {
+        read_only = true;
+    }
+
     let schema = build_schema(&conn)?;
 
     Ok((
@@ -241,7 +292,9 @@ fn open_connection(path: &str) -> Result<(Connection, DbInfo), String> {
             sqlite_version,
             journal_mode,
             schema,
+            read_only,
         },
+        read_only,
     ))
 }
 
@@ -331,6 +384,39 @@ mod tests {
 
             let (tx, rx) = oneshot::channel();
             db.call(DbRequest::Close { reply: tx }, rx).await.unwrap();
+            let _ = std::fs::remove_file(&db_file);
+        });
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn opens_read_only_when_file_is_readonly() {
+        use std::os::unix::fs::PermissionsExt;
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let db_file = Path::new(env!("CARGO_MANIFEST_DIR")).join("target/ore-ro-test.db");
+            let _ = std::fs::remove_file(&db_file);
+            {
+                let c = Connection::open(&db_file).unwrap();
+                c.execute_batch("CREATE TABLE t(x)").unwrap();
+            }
+            std::fs::set_permissions(&db_file, std::fs::Permissions::from_mode(0o444)).unwrap();
+
+            // Some sandboxes ignore permission bits (DAC override) — the
+            // fallback can only be exercised where the OS honors them.
+            let probe = std::fs::OpenOptions::new().write(true).open(&db_file);
+            if probe.is_ok() {
+                std::fs::set_permissions(&db_file, std::fs::Permissions::from_mode(0o644)).unwrap();
+                eprintln!("skipped: environment ignores read-only permission bits");
+                return;
+            }
+
+            let (_, info, ro) = open_connection(db_file.to_str().unwrap()).unwrap();
+            assert!(ro);
+            assert!(info.read_only);
+
+            // Restore permissions so the file can be removed
+            std::fs::set_permissions(&db_file, std::fs::Permissions::from_mode(0o644)).unwrap();
             let _ = std::fs::remove_file(&db_file);
         });
     }

@@ -30,6 +30,7 @@ export interface DbInfo {
   sizeBytes: number;
   sqliteVersion: string;
   journalMode: string;
+  readOnly: boolean;
   schema: Schema;
 }
 

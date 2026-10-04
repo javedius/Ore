@@ -46,6 +46,7 @@ pub struct DbInfo {
     pub size_bytes: u64,
     pub sqlite_version: String,
     pub journal_mode: String,
+    pub read_only: bool,
     pub schema: Schema,
 }
 

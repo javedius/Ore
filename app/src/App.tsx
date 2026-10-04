@@ -144,6 +144,21 @@ export default function App() {
               <div className="tabbar-actions" />
             </div>
 
+            {db.readOnly && (
+              <div
+                className="alert-line"
+                style={{ background: "var(--warn-dim)", borderColor: "var(--warn)", borderRadius: 0, borderLeft: 0, borderRight: 0 }}
+              >
+                <span style={{ color: "var(--warn)" }}>
+                  <Icon name="i-alert" />
+                </span>
+                <span>
+                  Read-only mode — the file is locked by another program or sits on read-only media.
+                  Browsing works; editing is disabled.
+                </span>
+              </div>
+            )}
+
             {active === null ? (
               <div className="empty-main">Select a table in the sidebar or open the SQL editor</div>
             ) : (
@@ -160,6 +175,7 @@ export default function App() {
                       name={t.name}
                       kind={t.kind === "view" ? "view" : "table"}
                       hasRowid={schema.tables.find((x) => x.name === t.name)?.hasRowid ?? true}
+                      fileReadOnly={db.readOnly}
                       onStatus={setStatus}
                       onSchemaChanged={refreshSchema}
                       onImportClick={() => setImportOpen(true)}
