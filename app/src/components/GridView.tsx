@@ -11,6 +11,7 @@ interface Props {
   name: string;
   kind: "table" | "view";
   hasRowid: boolean;
+  fileReadOnly: boolean;
   onStatus: (s: StatusInfo) => void;
   onSchemaChanged: () => void;
   onImportClick: () => void;
@@ -36,7 +37,7 @@ function placeholderFor(ctype: string): string {
   return "contains";
 }
 
-export default function GridView({ name, kind, hasRowid, onStatus, onSchemaChanged, onImportClick }: Props) {
+export default function GridView({ name, kind, hasRowid, fileReadOnly, onStatus, onSchemaChanged, onImportClick }: Props) {
   const [data, setData] = useState<RowsResult | null>(null);
   const [page, setPage] = useState(0);
   const [orderBy, setOrderBy] = useState<string | null>(null);
@@ -50,7 +51,7 @@ export default function GridView({ name, kind, hasRowid, onStatus, onSchemaChang
   const [error, setError] = useState<string | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
-  const editable = kind === "table" && hasRowid;
+  const editable = kind === "table" && hasRowid && !fileReadOnly;
 
   const reload = useCallback(() => {
     getRows(name, page * LIMIT, LIMIT, orderBy, orderDesc, applied)
@@ -235,9 +236,11 @@ export default function GridView({ name, kind, hasRowid, onStatus, onSchemaChang
         <span className="pgmeta" style={{ padding: "0 4px" }}>
           {applied.length > 0
             ? `${applied.length} filter${applied.length > 1 ? "s" : ""} applied`
-            : editable
-              ? "double-click a cell to edit"
-              : "read-only"}
+            : fileReadOnly
+              ? "read-only — file is locked"
+              : editable
+                ? "double-click a cell to edit"
+                : "read-only"}
         </span>
         <div className="grow" />
         <div className="toolbar-actions">
