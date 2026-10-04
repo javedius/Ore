@@ -1,4 +1,4 @@
-use crate::rows::{exec_sql_impl, get_rows_impl, FilterArg, RowsResult, SqlResult};
+use crate::rows::{exec_sql_multi_impl, get_rows_impl, FilterArg, RowsResult};
 use crate::schema::{build_schema, DbInfo, Schema};
 use crate::util::db_err;
 use rusqlite::{Connection, InterruptHandle, OpenFlags};
@@ -59,7 +59,7 @@ pub enum DbRequest {
         filters: Option<Vec<FilterArg>>,
         reply: Responder<RowsResult>,
     },
-    ExecSql { sql: String, reply: Responder<SqlResult> },
+    ExecSql { sql: String, reply: Responder<Vec<crate::rows::SqlOutcome>> },
     UpdateCell { edit: CellEdit, reply: Responder<()> },
     InsertRow { table: String, reply: Responder<i64> },
     DeleteRow { table: String, rowid: i64, reply: Responder<()> },
@@ -174,9 +174,8 @@ pub fn spawn_db_thread() -> DbThread {
                     }
                     DbRequest::ExecSql { sql, reply } => {
                         int.set_busy(true);
-                        with_conn(&mut conn, reply, |c| exec_sql_impl(c, &sql));
+                        with_conn(&mut conn, reply, |c| Ok(exec_sql_multi_impl(c, &sql, &mut counts)));
                         int.set_busy(false);
-                        counts.clear();
                     }
                     DbRequest::UpdateCell { edit, reply } => {
                         if read_only {
@@ -356,14 +355,16 @@ mod tests {
             let db2 = db.clone();
             let worker = tokio::spawn(async move {
                 let (tx, rx) = oneshot::channel();
-                let res = db2
+                let outcomes = db2
                     .call(DbRequest::ExecSql { sql: long_query.to_string(), reply: tx }, rx)
-                    .await;
-                let err = res.expect_err("the long query must be interrupted");
+                    .await
+                    .unwrap();
+                let last = outcomes.last().unwrap();
+                assert_eq!(last.kind, "error", "the long query must be interrupted");
                 assert!(
-                    err.to_lowercase().contains("interrupt"),
+                    last.error.as_deref().unwrap_or("").to_lowercase().contains("interrupt"),
                     "unexpected error: {}",
-                    err
+                    last.error.as_deref().unwrap_or("")
                 );
             });
 
@@ -373,14 +374,15 @@ mod tests {
 
             // The connection must stay usable after an interrupt.
             let (tx, rx) = oneshot::channel();
-            let n = db
+            let outcomes = db
                 .call(
                     DbRequest::ExecSql { sql: "SELECT 40+2".into(), reply: tx },
                     rx,
                 )
                 .await
                 .unwrap();
-            assert_eq!(n.rows, vec![vec![serde_json::json!(42)]]);
+            assert_eq!(outcomes.len(), 1);
+            assert_eq!(outcomes[0].rows, vec![vec![serde_json::json!(42)]]);
 
             let (tx, rx) = oneshot::channel();
             db.call(DbRequest::Close { reply: tx }, rx).await.unwrap();

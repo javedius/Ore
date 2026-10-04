@@ -180,21 +180,104 @@ pub(crate) fn get_rows_impl(
     })
 }
 
-pub(crate) fn exec_sql_impl(conn: &Connection, sql: &str) -> Result<SqlResult, String> {
-    let start = Instant::now();
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SqlOutcome {
+    pub index: usize,
+    pub sql: String,
+    pub kind: String, // "query" | "exec" | "error"
+    pub columns: Vec<String>,
+    pub rows: Vec<Vec<Value>>,
+    pub rows_affected: i64,
+    pub elapsed_ms: u128,
+    pub error: Option<String>,
+}
 
+/// Split a script into statements, respecting string literals, quoted
+/// identifiers, bracket identifiers and comments.
+fn split_statements(sql: &str) -> Vec<String> {
+    #[derive(PartialEq, Clone, Copy)]
+    enum Mode {
+        Normal,
+        Single,
+        Double,
+        Backtick,
+        Bracket,
+        LineComment,
+        BlockComment,
+    }
+    let mut mode = Mode::Normal;
+    let mut cur = String::new();
+    let mut out = Vec::new();
+    let mut chars = sql.chars().peekable();
+    while let Some(c) = chars.next() {
+        match mode {
+            Mode::Normal => match c {
+                '\'' => { mode = Mode::Single; cur.push(c); }
+                '"' => { mode = Mode::Double; cur.push(c); }
+                '`' => { mode = Mode::Backtick; cur.push(c); }
+                '[' => { mode = Mode::Bracket; cur.push(c); }
+                '-' if chars.peek() == Some(&'-') => {
+                    chars.next();
+                    mode = Mode::LineComment;
+                    cur.push('-');
+                    cur.push('-');
+                }
+                '/' if chars.peek() == Some(&'*') => {
+                    chars.next();
+                    mode = Mode::BlockComment;
+                    cur.push('/');
+                    cur.push('*');
+                }
+                ';' => { out.push(cur.trim().to_string()); cur.clear(); }
+                _ => cur.push(c),
+            },
+            Mode::Single => {
+                cur.push(c);
+                if c == '\'' {
+                    if chars.peek() == Some(&'\'') { cur.push(chars.next().unwrap()); } else { mode = Mode::Normal; }
+                }
+            }
+            Mode::Double => {
+                cur.push(c);
+                if c == '"' {
+                    if chars.peek() == Some(&'"') { cur.push(chars.next().unwrap()); } else { mode = Mode::Normal; }
+                }
+            }
+            Mode::Backtick => {
+                cur.push(c);
+                if c == '`' { mode = Mode::Normal; }
+            }
+            Mode::Bracket => {
+                cur.push(c);
+                if c == ']' { mode = Mode::Normal; }
+            }
+            Mode::LineComment => {
+                cur.push(c);
+                if c == '\n' { mode = Mode::Normal; }
+            }
+            Mode::BlockComment => {
+                cur.push(c);
+                if c == '*' && chars.peek() == Some(&'/') {
+                    cur.push(chars.next().unwrap());
+                    mode = Mode::Normal;
+                }
+            }
+        }
+    }
+    out.push(cur.trim().to_string());
+    out.into_iter().filter(|s| !s.is_empty()).collect()
+}
+
+fn exec_one(
+    conn: &Connection,
+    sql: &str,
+) -> Result<(String, Vec<String>, Vec<Vec<Value>>, i64), String> {
     let mut stmt = conn.prepare(sql).map_err(db_err)?;
     let col_count = stmt.column_count();
-
-    let result = if col_count == 0 {
+    if col_count == 0 {
         let affected = stmt.execute([]).map_err(db_err)?;
-        SqlResult {
-            kind: "exec".into(),
-            columns: Vec::new(),
-            rows: Vec::new(),
-            rows_affected: affected as i64,
-            elapsed_ms: 0,
-        }
+        Ok(("exec".into(), Vec::new(), Vec::new(), affected as i64))
     } else {
         let columns: Vec<String> = stmt.column_names().into_iter().map(String::from).collect();
         let mut rows = stmt.query([]).map_err(db_err)?;
@@ -209,17 +292,52 @@ pub(crate) fn exec_sql_impl(conn: &Connection, sql: &str) -> Result<SqlResult, S
                 break; // soft UI fetch cap
             }
         }
-        SqlResult {
-            kind: "query".into(),
-            columns,
-            rows: out,
-            rows_affected: 0,
-            elapsed_ms: 0,
-        }
-    };
+        Ok(("query".into(), columns, out, 0))
+    }
+}
 
-    let elapsed_ms = start.elapsed().as_millis();
-    Ok(SqlResult { elapsed_ms, ..result })
+/// Execute every statement of the script in order; stop at the first error.
+/// A write statement invalidates the row-count cache.
+pub(crate) fn exec_sql_multi_impl(
+    conn: &Connection,
+    sql: &str,
+    counts: &mut HashMap<String, i64>,
+) -> Vec<SqlOutcome> {
+    let mut out = Vec::new();
+    for (i, stmt) in split_statements(sql).into_iter().enumerate() {
+        let start = Instant::now();
+        match exec_one(conn, &stmt) {
+            Ok((kind, columns, rows, rows_affected)) => {
+                if kind == "exec" {
+                    counts.clear();
+                }
+                out.push(SqlOutcome {
+                    index: i + 1,
+                    sql: stmt,
+                    kind,
+                    columns,
+                    rows,
+                    rows_affected,
+                    elapsed_ms: start.elapsed().as_millis(),
+                    error: None,
+                });
+            }
+            Err(e) => {
+                out.push(SqlOutcome {
+                    index: i + 1,
+                    sql: stmt,
+                    kind: "error".into(),
+                    columns: Vec::new(),
+                    rows: Vec::new(),
+                    rows_affected: 0,
+                    elapsed_ms: start.elapsed().as_millis(),
+                    error: Some(e),
+                });
+                break;
+            }
+        }
+    }
+    out
 }
 
 // --- Thin commands: forward to the DB thread and await the reply ---
@@ -251,7 +369,7 @@ pub async fn get_rows(
 }
 
 #[tauri::command(async)]
-pub async fn exec_sql(sql: String, db: State<'_, DbThread>) -> Result<SqlResult, String> {
+pub async fn exec_sql(sql: String, db: State<'_, DbThread>) -> Result<Vec<SqlOutcome>, String> {
     let (tx, rx) = oneshot::channel();
     db.call(crate::state::DbRequest::ExecSql { sql, reply: tx }, rx).await
 }
@@ -278,6 +396,17 @@ mod tests {
         assert!(sql.contains("\"b\" LIKE ?"), "sql: {}", sql);
         assert!(!sql.contains("nope"));
         assert_eq!(vals.len(), 2);
+    }
+
+    #[test]
+    fn splits_statements_respecting_literals_and_comments() {
+        let sql = "SELECT 'a;b' AS x; -- comment; here\nSELECT 2; /* ; */ SELECT \"semi;colon\";";
+        let s = split_statements(sql);
+        assert_eq!(s.len(), 3, "got: {:?}", s);
+        assert!(s[0].contains("'a;b'"));
+        assert!(s[1].ends_with("SELECT 2"), "s[1] = {:?}", s[1]); // line comment sticks to the next statement
+        assert!(s[2].contains("\"semi;colon\""));
+        assert!(split_statements("  ;  ;  ").is_empty());
     }
 
     #[test]

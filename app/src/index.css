@@ -439,3 +439,31 @@ body,
 .import-dialog .grow {
   flex: 1;
 }
+
+.res-section {
+  border-bottom: 1px solid var(--line);
+}
+.res-head {
+  font: 600 11px/1 var(--font-ui);
+  color: var(--text-2);
+  padding: 10px 12px 6px;
+  position: sticky;
+  top: 0;
+  background: var(--bg-app);
+  z-index: 2;
+}
+.result-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.msg-outcome {
+  margin-bottom: 12px;
+}
+.msg-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 12px/1.5 var(--font-ui);
+  color: var(--text-1);
+}
