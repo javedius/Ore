@@ -191,6 +191,10 @@ body,
   flex-direction: column;
 }
 
+.sql-monaco {
+  flex: 1;
+  min-height: 0;
+}
 .sql-input {
   flex: 1;
   min-height: 0;

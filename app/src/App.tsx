@@ -169,7 +169,7 @@ export default function App() {
                   style={{ display: t.id === activeId ? "flex" : "none" }}
                 >
                   {t.kind === "sql" ? (
-                    <SqlView onStatus={setStatus} onSchemaChanged={refreshSchema} />
+                    <SqlView schema={schema} onStatus={setStatus} onSchemaChanged={refreshSchema} />
                   ) : (
                     <GridView
                       name={t.name}
