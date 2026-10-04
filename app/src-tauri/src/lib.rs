@@ -19,18 +19,23 @@ mod splash;
 mod state;
 mod util;
 
-use state::AppDb;
+use state::spawn_db_thread;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // The SQLite connection lives on a dedicated thread; commands talk to it
+    // through the request channel, and Stop interrupts the running statement.
+    let db = spawn_db_thread();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .manage(AppDb::default())
+        .manage(db)
         .invoke_handler(tauri::generate_handler![
-            schema::open_db,
-            schema::close_db,
-            schema::get_schema,
+            state::open_db,
+            state::close_db,
+            state::get_schema,
+            state::stop_query,
             rows::get_rows,
             rows::exec_sql,
             edit::update_cell,

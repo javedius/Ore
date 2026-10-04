@@ -1,12 +1,13 @@
-use crate::rows::{build_filters, FilterArg};
+use crate::rows::build_filters;
 use crate::schema::{column_exists, object_exists, pragma_columns};
-use crate::state::AppDb;
+use crate::state::{DbThread, ExportArgs, ImportArgs};
 use crate::util::{cell_to_text, db_err, quote_ident, value_to_json};
-use rusqlite::params_from_iter;
-use serde::{Deserialize, Serialize};
+use rusqlite::{params_from_iter, Connection};
+use serde::Serialize;
 use serde_json::Value;
 use std::fs;
 use tauri::State;
+use tokio::sync::oneshot;
 
 // --- CSV reading ---
 
@@ -111,18 +112,6 @@ fn infer_type(records: &[Vec<String>], col: usize, has_header: bool) -> &'static
     }
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ImportArgs {
-    pub path: String,
-    pub table: String,
-    pub create_table: bool,
-    pub delimiter: String,
-    pub has_header: bool,
-    /// csv column i -> table column (None — skip)
-    pub mapping: Vec<Option<String>>,
-}
-
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportResult {
@@ -130,10 +119,8 @@ pub struct ImportResult {
 }
 
 #[tauri::command(async)]
-pub fn import_csv(args: ImportArgs, db: State<'_, AppDb>) -> Result<ImportResult, String> {
+pub(crate) fn import_csv_impl(conn: &Connection, args: &ImportArgs) -> Result<ImportResult, String> {
     let d = args.delimiter.bytes().next().unwrap_or(b',');
-    let guard = db.0.lock().unwrap();
-    let conn = guard.as_ref().ok_or("No database is open")?;
 
     if args.table.trim().is_empty() {
         return Err("Table name is empty".into());
@@ -216,15 +203,6 @@ pub fn import_csv(args: ImportArgs, db: State<'_, AppDb>) -> Result<ImportResult
 
 // --- Export ---
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ExportArgs {
-    pub object: String,
-    pub path: String,
-    pub format: String, // "csv" | "json"
-    pub filters: Option<Vec<FilterArg>>,
-}
-
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExportResult {
@@ -232,9 +210,7 @@ pub struct ExportResult {
 }
 
 #[tauri::command(async)]
-pub fn export_object(args: ExportArgs, db: State<'_, AppDb>) -> Result<ExportResult, String> {
-    let guard = db.0.lock().unwrap();
-    let conn = guard.as_ref().ok_or("No database is open")?;
+pub(crate) fn export_object_impl(conn: &Connection, args: &ExportArgs) -> Result<ExportResult, String> {
     if !object_exists(conn, &args.object) {
         return Err(format!("Unknown object: {}", args.object));
     }
@@ -274,6 +250,30 @@ pub fn export_object(args: ExportArgs, db: State<'_, AppDb>) -> Result<ExportRes
         wtr.flush().map_err(|e| e.to_string())?;
     }
     Ok(ExportResult { rows: count })
+}
+
+// --- Thin commands: forward to the DB thread and await the reply ---
+
+#[tauri::command(async)]
+pub async fn import_csv(
+    args: ImportArgs,
+    db: State<'_, DbThread>,
+) -> Result<ImportResult, String> {
+    let (tx, rx) = oneshot::channel();
+    db.call(crate::state::DbRequest::ImportCsv { args, reply: tx }, rx)
+        .await
+        .map(|imported| ImportResult { imported })
+}
+
+#[tauri::command(async)]
+pub async fn export_object(
+    args: ExportArgs,
+    db: State<'_, DbThread>,
+) -> Result<ExportResult, String> {
+    let (tx, rx) = oneshot::channel();
+    db.call(crate::state::DbRequest::ExportObject { args, reply: tx }, rx)
+        .await
+        .map(|rows| ExportResult { rows })
 }
 
 #[cfg(test)]

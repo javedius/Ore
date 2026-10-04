@@ -1,5 +1,5 @@
 use crate::schema::{column_exists, object_exists, pragma_columns};
-use crate::state::AppDb;
+use crate::state::DbThread;
 use crate::util::{db_err, quote_ident, value_to_json};
 use rusqlite::types::Value as SqlValue;
 use rusqlite::{params_from_iter, Connection};
@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::time::Instant;
 use tauri::State;
+use tokio::sync::oneshot;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -17,7 +18,7 @@ pub struct RowsResult {
     pub total: i64,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SqlResult {
     pub kind: String, // "query" | "exec"
@@ -78,27 +79,25 @@ pub fn build_filters(
     }
 }
 
-#[tauri::command(async)]
-pub fn get_rows(
-    object: String,
+pub(crate) fn get_rows_impl(
+    conn: &Connection,
+    object: &str,
     offset: i64,
     limit: i32,
-    order_by: Option<String>,
+    order_by: Option<&str>,
     order_desc: bool,
-    filters: Option<Vec<FilterArg>>,
-    db: State<'_, AppDb>,
+    filters: Option<&[FilterArg]>,
 ) -> Result<RowsResult, String> {
     let limit = limit.clamp(1, 500) as i64;
-    let guard = db.0.lock().unwrap();
-    let conn = guard.as_ref().ok_or("No database is open")?;
-    if !object_exists(conn, &object) {
+    if !object_exists(conn, object) {
         return Err(format!("Unknown object: {}", object));
     }
-    let qname = quote_ident(&object);
+    let qname = quote_ident(object);
 
-    let (where_sql, mut qvals) = build_filters(conn, &object, filters.as_deref().unwrap_or(&[]))?;
+    let (where_sql, mut qvals) =
+        build_filters(conn, object, filters.unwrap_or(&[]))?;
     qvals.push(SqlValue::Integer(limit));
-    qvals.push(SqlValue::Integer(offset as i64));
+    qvals.push(SqlValue::Integer(offset));
 
     let total: i64 = conn
         .query_row(
@@ -109,9 +108,9 @@ pub fn get_rows(
         .unwrap_or(0);
 
     let order = match order_by {
-        Some(col) if column_exists(conn, &object, &col) => format!(
+        Some(col) if column_exists(conn, object, col) => format!(
             " ORDER BY {} {}",
-            quote_ident(&col),
+            quote_ident(col),
             if order_desc { "DESC" } else { "ASC" }
         ),
         _ => String::new(),
@@ -119,7 +118,7 @@ pub fn get_rows(
 
     // Primary path — with rowid (needed for editing); views and WITHOUT ROWID are read-only.
     // Column metadata comes from PRAGMA table_info; it matches SELECT *.
-    let pragma_cols = pragma_columns(conn, &object)?;
+    let pragma_cols = pragma_columns(conn, object)?;
     let sql_with_rowid = format!(
         "SELECT rowid, * FROM {}{}{} LIMIT ? OFFSET ?",
         qname, where_sql, order
@@ -164,13 +163,10 @@ pub fn get_rows(
     })
 }
 
-#[tauri::command(async)]
-pub fn exec_sql(sql: String, db: State<'_, AppDb>) -> Result<SqlResult, String> {
+pub(crate) fn exec_sql_impl(conn: &Connection, sql: &str) -> Result<SqlResult, String> {
     let start = Instant::now();
-    let guard = db.0.lock().unwrap();
-    let conn = guard.as_ref().ok_or("No database is open")?;
 
-    let mut stmt = conn.prepare(&sql).map_err(db_err)?;
+    let mut stmt = conn.prepare(sql).map_err(db_err)?;
     let col_count = stmt.column_count();
 
     let result = if col_count == 0 {
@@ -207,6 +203,40 @@ pub fn exec_sql(sql: String, db: State<'_, AppDb>) -> Result<SqlResult, String> 
 
     let elapsed_ms = start.elapsed().as_millis();
     Ok(SqlResult { elapsed_ms, ..result })
+}
+
+// --- Thin commands: forward to the DB thread and await the reply ---
+
+#[tauri::command(async)]
+pub async fn get_rows(
+    object: String,
+    offset: i64,
+    limit: i32,
+    order_by: Option<String>,
+    order_desc: bool,
+    filters: Option<Vec<FilterArg>>,
+    db: State<'_, DbThread>,
+) -> Result<RowsResult, String> {
+    let (tx, rx) = oneshot::channel();
+    db.call(
+        crate::state::DbRequest::GetRows {
+            object,
+            offset,
+            limit,
+            order_by,
+            order_desc,
+            filters,
+            reply: tx,
+        },
+        rx,
+    )
+    .await
+}
+
+#[tauri::command(async)]
+pub async fn exec_sql(sql: String, db: State<'_, DbThread>) -> Result<SqlResult, String> {
+    let (tx, rx) = oneshot::channel();
+    db.call(crate::state::DbRequest::ExecSql { sql, reply: tx }, rx).await
 }
 
 #[cfg(test)]

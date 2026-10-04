@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { save } from "@tauri-apps/plugin-dialog";
-import { execSql, saveText } from "../commands";
+import { execSql, saveText, stopQuery } from "../commands";
 import type { HistoryEntry, SqlResult, StatusInfo } from "../types";
 import { Icon } from "./Icons";
 import { CellView, cellClass, cellText, isBlob } from "./cell";
@@ -122,7 +122,14 @@ export default function SqlView({ onStatus, onSchemaChanged }: Props) {
             Run
             <span className="kbd">⌘⏎</span>
           </button>
-          <button className="btn" disabled title="Interrupt is not implemented yet">
+          <button
+            className="btn"
+            disabled={!running}
+            onClick={() => {
+              void stopQuery();
+            }}
+            title="Interrupt the running statement"
+          >
             Stop
           </button>
           <div className="grow" />
