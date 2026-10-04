@@ -66,7 +66,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ore-build-${{ matrix.platform }}-${{ matrix.args }}
-          path: app/src-tauri/target/**/release/bundle/**
+          path: |
+            app/src-tauri/target/**/bundle/dmg/*.dmg
+            app/src-tauri/target/**/bundle/nsis/*.exe
+            app/src-tauri/target/**/bundle/msi/*.msi
+            app/src-tauri/target/**/bundle/appimage/*.AppImage
+            app/src-tauri/target/**/bundle/deb/*.deb
+            app/src-tauri/target/**/bundle/rpm/*.rpm
 
       - uses: tauri-apps/tauri-action@v0
         if: github.event_name == 'push'
