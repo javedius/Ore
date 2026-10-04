@@ -1,13 +1,18 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Editor } from "@monaco-editor/react";
+import type * as Monaco from "monaco-editor";
 import { save } from "@tauri-apps/plugin-dialog";
 import { execSql, saveText, stopQuery } from "../commands";
-import type { HistoryEntry, SqlOutcome, StatusInfo } from "../types";
+import type { HistoryEntry, Schema, SqlOutcome, StatusInfo } from "../types";
+import { initMonaco, registerSqlCompletions } from "../monaco-setup";
+type MonacoApi = typeof import("monaco-editor");
 import { Icon } from "./Icons";
 import { CellView, cellClass, cellText, isBlob } from "./cell";
 
 const HIST_KEY = "caliper-history";
 
 interface Props {
+  schema: Schema;
   onStatus: (s: StatusInfo) => void;
   onSchemaChanged: () => void;
 }
@@ -21,13 +26,53 @@ function loadHistory(): HistoryEntry[] {
   }
 }
 
-export default function SqlView({ onStatus, onSchemaChanged }: Props) {
+export default function SqlView({ schema, onStatus, onSchemaChanged }: Props) {
   const [sql, setSql] = useState("SELECT name, type FROM sqlite_master ORDER BY type, name");
   const [outcomes, setOutcomes] = useState<SqlOutcome[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pane, setPane] = useState<"results" | "messages">("results");
   const [running, setRunning] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>(loadHistory);
+
+  // --- Monaco (lazy): themes + schema-aware completion ---
+  const [monacoReady, setMonacoReady] = useState(false);
+  const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
+  const monacoRef = useRef<MonacoApi | null>(null);
+  const schemaRef = useRef<{ tables: { name: string; columns: { name: string; ctype: string }[] }[] }>({
+    tables: [],
+  });
+  const runRef = useRef<() => void>(() => {});
+
+  useEffect(() => {
+    schemaRef.current = {
+      tables: schema.tables.map((t) => ({ name: t.name, columns: t.columns })),
+    };
+  }, [schema]);
+
+  useEffect(() => {
+    let disposed = false;
+    void initMonaco().then((monaco) => {
+      if (disposed) return;
+      monacoRef.current = monaco;
+      registerSqlCompletions(monaco, () => schemaRef.current);
+      monaco.editor.setTheme(
+        document.documentElement.dataset.theme === "light" ? "ore-light" : "ore-dark"
+      );
+      setMonacoReady(true);
+    });
+    return () => {
+      disposed = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const onTheme = (e: Event) => {
+      const t = (e as CustomEvent<"dark" | "light">).detail;
+      monacoRef.current?.editor.setTheme(t === "light" ? "ore-light" : "ore-dark");
+    };
+    window.addEventListener("ore-theme-change", onTheme);
+    return () => window.removeEventListener("ore-theme-change", onTheme);
+  }, []);
 
   const pushHistory = (entry: { sql: string; ok: boolean; meta: string }) => {
     setHistory((prev) => {
@@ -75,6 +120,9 @@ export default function SqlView({ onStatus, onSchemaChanged }: Props) {
       setRunning(false);
     }
   };
+
+  // The editor command must always call the latest run
+  runRef.current = run;
 
   const clearHistory = () => {
     setHistory([]);
@@ -155,19 +203,47 @@ export default function SqlView({ onStatus, onSchemaChanged }: Props) {
           )}
         </div>
 
-        <textarea
-          className="sql-input"
-          value={sql}
-          onChange={(e) => setSql(e.target.value)}
-          onKeyDown={(e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-              e.preventDefault();
-              void run();
-            }
-          }}
-          spellCheck={false}
-          placeholder={"Type SQL and press ⌘/Ctrl+Enter…\nMultiple statements are executed in order."}
-        />
+        {monacoReady ? (
+          <div className="sql-monaco">
+            <Editor
+              height="100%"
+              defaultLanguage="sql"
+              language="sql"
+              value={sql}
+              onChange={(v) => setSql(v ?? "")}
+              onMount={(editor, monaco) => {
+                editorRef.current = editor;
+                editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () =>
+                  runRef.current()
+                );
+              }}
+              options={{
+                minimap: { enabled: false },
+                fontSize: 13,
+                fontFamily: "ui-monospace, 'SF Mono', Menlo, Consolas, monospace",
+                lineNumbers: "on",
+                scrollBeyondLastLine: false,
+                automaticLayout: true,
+                wordWrap: "off",
+                padding: { top: 10 },
+              }}
+            />
+          </div>
+        ) : (
+          <textarea
+            className="sql-input"
+            value={sql}
+            onChange={(e) => setSql(e.target.value)}
+            onKeyDown={(e) => {
+              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                e.preventDefault();
+                void run();
+              }
+            }}
+            spellCheck={false}
+            placeholder="Type SQL and press ⌘/Ctrl+Enter…"
+          />
+        )}
 
         <div className="result">
           <div className="rtabs">
