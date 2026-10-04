@@ -44,7 +44,9 @@ Grab an installer from [Releases](https://github.com/javedius/Ore/releases):
 `.dmg` (Apple Silicon), `.msi` / `.exe` (NSIS) and `.AppImage` / `.deb` / `.rpm`.
 
 > Builds are produced automatically per tag. Until the first tagged release, use [Build from source](#build-from-source).
-> macOS builds are unsigned for now — on first launch use right-click → Open (see the Gatekeeper note).
+> macOS builds are unsigned for now — copy the app to Applications and run
+> `xattr -dr com.apple.quarantine /Applications/Ore.app` once (Gatekeeper on recent macOS
+> reports unsigned apps as damaged; right-click → Open no longer works).
 
 ## Build from source
 
