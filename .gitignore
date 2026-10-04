@@ -20,3 +20,8 @@ app/src-tauri/gen/schemas/
 /branding/preview.html
 /branding/mascot-*.svg
 /branding/icon-*.svg
+
+# Internal docs (kept locally, not published)
+/PRD.md
+/design/
+/PLAN.md
