@@ -44,10 +44,12 @@ Ore построен вокруг одной задачи: **открыть SQLi
 `.dmg` (Apple Silicon), `.msi` / `.exe` (NSIS) и `.AppImage` / `.deb` / `.rpm`.
 
 > Сборки делаются автоматически по тегу. До первого тега — соберите из исходников (ниже).
-> macOS: самый простой способ — `brew install javedius/tap/ore` (без вопросов Gatekeeper).
+> macOS: самый простой способ — одна команда:
+> `curl -fsSL https://raw.githubusercontent.com/javedius/Ore/main/install.sh | sh`
+> (ставит последнюю сборку в /Applications без вопросов Gatekeeper).
 > Качаете dmg руками? Скопируйте в Applications и один раз выполните
 > `xattr -dr com.apple.quarantine /Applications/Ore.app` (свежие macOS считают неподписанные
-> приложения повреждёнными; правый клик → Открыть больше не работает).
+> приложения повреждёнными).
 
 ## Сборка из исходников
 
