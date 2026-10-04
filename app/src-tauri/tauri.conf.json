@@ -12,11 +12,27 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Ore",
         "width": 1280,
         "height": 820,
         "minWidth": 980,
-        "minHeight": 640
+        "minHeight": 640,
+        "center": true,
+        "visible": false
+      },
+      {
+        "label": "splashscreen",
+        "title": "Ore",
+        "url": "splashscreen.html",
+        "width": 440,
+        "height": 540,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "center": true,
+        "skipTaskbar": true,
+        "alwaysOnTop": true
       }
     ],
     "security": {

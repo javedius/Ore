@@ -14,6 +14,10 @@
 
 <p><sub>主窗口：架构树、可编辑表格、单元格右键菜单。另有<a href="docs/screenshot-light.png">浅色主题</a>。</sub></p>
 
+<img src="docs/mascot.png" width="120" alt="Mo —— 矿工鼹鼠，Ore 的吉祥物">
+
+<p><sub>认识一下 <strong>Mo</strong> —— 矿工鼹鼠，它替你挖矿。</sub></p>
+
 </div>
 
 ## 为什么做 Ore

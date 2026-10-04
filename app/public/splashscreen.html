@@ -1,0 +1,50 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; background: transparent; overflow: hidden; }
+  .shell {
+    height: 100vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+    background: #15191A;
+    border: 1px solid #272E30;
+    border-radius: 26px;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+    user-select: none; -webkit-user-select: none;
+  }
+  .art { width: 210px; height: 210px; animation: bob 2.4s ease-in-out infinite; }
+  .word {
+    font: 700 30px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    color: #DDE4E2; letter-spacing: .08em;
+  }
+  .tag { font: 500 12px/1 sans-serif; color: #9AA7A4; letter-spacing: .02em; }
+  .dig { display: flex; gap: 8px; margin-top: 10px; }
+  .dig i {
+    width: 10px; height: 10px; border-radius: 3px; transform: rotate(45deg);
+    background: #2E6E62; animation: dig 1.2s ease-in-out infinite;
+  }
+  .dig i:nth-child(2) { animation-delay: .15s; }
+  .dig i:nth-child(3) { animation-delay: .3s; }
+  .dig i:nth-child(4) { animation-delay: .45s; }
+  .dig i.hot { background: #53C7B4; }
+  @keyframes dig {
+    0%, 100% { transform: translateY(0) rotate(45deg); background: #2E6E62; }
+    50% { transform: translateY(-9px) rotate(45deg); background: #53C7B4; }
+  }
+  @keyframes bob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-7px); }
+  }
+</style>
+</head>
+<body>
+  <div class="shell">
+    <img class="art" src="/mo.svg" alt="Mo, the miner mole">
+    <div class="word">Ore</div>
+    <div class="tag">digging your data…</div>
+    <div class="dig"><i class="hot"></i><i></i><i></i><i></i></div>
+  </div>
+</body>
+</html>

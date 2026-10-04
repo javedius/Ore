@@ -14,6 +14,10 @@
 
 <p><sub>Main window: schema tree, editable grid, cell context menu. There is also a <a href="docs/screenshot-light.png">light theme</a>.</sub></p>
 
+<img src="docs/mascot.png" width="120" alt="Mo, the miner mole — Ore's mascot">
+
+<p><sub>Meet <strong>Mo</strong>, the miner mole — he digs the ore so you don't have to.</sub></p>
+
 </div>
 
 ## Why

@@ -1,4 +1,5 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { getSchema } from "./commands";
 import type { DbInfo, Schema, StatusInfo, Tab } from "./types";
 import { Icon, IconSprite } from "./components/Icons";
@@ -41,6 +42,11 @@ export default function App() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [status, setStatus] = useState<StatusInfo>({});
   const [importOpen, setImportOpen] = useState(false);
+
+  // UI готово — закрываем сплэш и показываем главное окно
+  useEffect(() => {
+    invoke("close_splashscreen").catch(() => {});
+  }, []);
 
   const refreshSchema = useCallback(() => {
     getSchema()

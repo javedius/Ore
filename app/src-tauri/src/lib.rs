@@ -8,12 +8,14 @@
 //! - `edit`   — data editing: update/insert/delete by rowid
 //! - `csv_io` — CSV/JSON import and export
 //! - `files`  — simple file commands
+//! - `splash` — splashscreen window handling
 
 mod csv_io;
 mod edit;
 mod files;
 mod rows;
 mod schema;
+mod splash;
 mod state;
 mod util;
 
@@ -38,7 +40,8 @@ pub fn run() {
             csv_io::csv_preview,
             csv_io::import_csv,
             csv_io::export_object,
-            files::save_text
+            files::save_text,
+            splash::close_splashscreen
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

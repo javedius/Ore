@@ -3,6 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { openDb, pathExists } from "../commands";
 import type { DbInfo } from "../types";
+import { MoBust } from "./Mo";
 
 const RECENTS_KEY = "caliper-recents";
 
@@ -130,7 +131,7 @@ export default function EmptyState({ onOpened }: { onOpened: (db: DbInfo) => voi
       <div className="es-body">
         <div className="es-col">
           <div className={"dropzone" + (dragOver ? " is-over" : "")} onClick={busy ? undefined : pickFile}>
-            <svg className="dz-icon"><use href="#i-db" /></svg>
+            <MoBust className="dz-mo" />
             <div className="dz-title">{busy ? "Opening…" : "Drop a SQLite file here"}</div>
             <div className="dz-sub">.db · .sqlite · .sqlite3</div>
             <div className="dz-actions" onClick={(e) => e.stopPropagation()}>

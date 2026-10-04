@@ -1,0 +1,39 @@
+/** Mo, the miner mascot — bust art (same source as the app icon, no tile). */
+export function MoBust({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 512 512" aria-hidden="true">
+      <path d="M76 488 L76 320 A180 180 0 0 1 436 320 L436 488 Z" fill="#0E1213"/>
+      <polygon points="98,442 110,454 98,466 86,454" fill="#2E6E62"/>
+      <polygon points="414,446 426,458 414,470 402,458" fill="#2E6E62"/>
+      <path d="M111 330 C111 246 176 186 256 186 C336 186 401 246 401 330 C401 402 344 452 256 452 C168 452 111 402 111 330 Z" fill="#C7CDD3"/>
+      <path d="M401 330 C401 246 336 186 256 186 C300 186 352 226 366 300 C374 348 368 402 330 436 C372 412 401 376 401 330 Z" fill="#AEB6BD"/>
+      <ellipse cx="256" cy="372" rx="64" ry="50" fill="#D4DADF"/>
+      <path d="M128 262 C134 184 190 146 256 146 C322 146 378 184 384 262 Z" fill="#D9A85B"/>
+      <rect x="246" y="148" width="32" height="66" rx="15" fill="#B8873F"/>
+      <rect x="112" y="252" width="288" height="28" rx="14" fill="#C09044"/>
+      <circle cx="256" cy="206" r="20" fill="#53C7B4"/>
+      <circle cx="256" cy="206" r="12" fill="#6FD6C5"/>
+      <circle cx="250" cy="200" r="4" fill="#F4F6F5"/>
+      <circle cx="202" cy="318" r="25" fill="#F4F6F5"/>
+      <circle cx="207" cy="314" r="12" fill="#101415"/>
+      <circle cx="211" cy="308" r="4" fill="#F4F6F5"/>
+      <circle cx="310" cy="318" r="25" fill="#F4F6F5"/>
+      <circle cx="305" cy="314" r="12" fill="#101415"/>
+      <circle cx="301" cy="308" r="4" fill="#F4F6F5"/>
+      <ellipse cx="256" cy="360" rx="24" ry="17" fill="#F0887A"/>
+      <ellipse cx="248" cy="354" rx="7" ry="5" fill="#F4A99D"/>
+      <path d="M232 396 Q256 412 280 396" fill="none" stroke="#8B98A0" strokeWidth="7" strokeLinecap="round"/>
+      <path d="M176 366 L116 356 M178 382 L118 392" stroke="#8B98A0" strokeWidth="4" strokeLinecap="round"/>
+      <path d="M336 366 L396 356 M334 382 L394 392" stroke="#8B98A0" strokeWidth="4" strokeLinecap="round"/>
+      <path d="M368 470 L426 320" stroke="#8F6415" strokeWidth="15" strokeLinecap="round"/>
+      <path d="M380 292 C424 270 474 286 490 318 C466 306 434 304 406 318 Z" fill="#53C7B4"/>
+      <path d="M406 318 C434 304 466 306 490 318 L484 332 C466 320 436 318 414 328 Z" fill="#6FD6C5"/>
+      <polygon points="256,408 294,446 256,484 218,446" fill="#53C7B4"/>
+      <polygon points="256,408 294,446 256,446" fill="#6FD6C5"/>
+      <ellipse cx="194" cy="452" rx="32" ry="22" fill="#C7CDD3"/>
+      <path d="M184 448 l0 12 M196 446 l0 12 M208 448 l0 12" stroke="#9AA7A4" strokeWidth="4" strokeLinecap="round"/>
+      <ellipse cx="318" cy="452" rx="32" ry="22" fill="#AEB6BD"/>
+      <path d="M308 448 l0 12 M320 446 l0 12 M332 448 l0 12" stroke="#8B98A0" strokeWidth="4" strokeLinecap="round"/>
+    </svg>
+  );
+}
