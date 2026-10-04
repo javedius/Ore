@@ -44,12 +44,15 @@ export interface RowsResult {
   total: number;
 }
 
-export interface SqlResult {
-  kind: "query" | "exec";
+export interface SqlOutcome {
+  index: number;
+  sql: string;
+  kind: "query" | "exec" | "error";
   columns: string[];
   rows: Cell[][];
   rowsAffected: number;
   elapsedMs: number;
+  error: string | null;
 }
 
 export interface HistoryEntry {

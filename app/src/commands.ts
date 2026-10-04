@@ -7,7 +7,7 @@ import type {
   ImportResult,
   RowsResult,
   Schema,
-  SqlResult,
+  SqlOutcome,
 } from "./types";
 
 export const openDb = (path: string) => invoke<DbInfo>("open_db", { path });
@@ -23,7 +23,7 @@ export const getRows = (
   filters: FilterArg[]
 ) => invoke<RowsResult>("get_rows", { object, offset, limit, orderBy, orderDesc, filters });
 
-export const execSql = (sql: string) => invoke<SqlResult>("exec_sql", { sql });
+export const execSql = (sql: string) => invoke<SqlOutcome[]>("exec_sql", { sql });
 
 export const updateCell = (
   table: string,

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { execSql, saveText, stopQuery } from "../commands";
-import type { HistoryEntry, SqlResult, StatusInfo } from "../types";
+import type { HistoryEntry, SqlOutcome, StatusInfo } from "../types";
 import { Icon } from "./Icons";
 import { CellView, cellClass, cellText, isBlob } from "./cell";
 
@@ -23,7 +23,7 @@ function loadHistory(): HistoryEntry[] {
 
 export default function SqlView({ onStatus, onSchemaChanged }: Props) {
   const [sql, setSql] = useState("SELECT name, type FROM sqlite_master ORDER BY type, name");
-  const [result, setResult] = useState<SqlResult | null>(null);
+  const [outcomes, setOutcomes] = useState<SqlOutcome[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pane, setPane] = useState<"results" | "messages">("results");
   const [running, setRunning] = useState(false);
@@ -46,19 +46,28 @@ export default function SqlView({ onStatus, onSchemaChanged }: Props) {
     setRunning(true);
     try {
       const res = await execSql(sql);
-      setResult(res);
+      setOutcomes(res);
       setError(null);
-      setPane(res.kind === "query" ? "results" : "messages");
+      const hasError = res.some((o) => o.kind === "error");
+      const lastQuery = [...res].reverse().find((o) => o.kind === "query");
+      setPane(lastQuery && !hasError ? "results" : "messages");
+      const rowsTotal = res.filter((o) => o.kind === "query").reduce((a, o) => a + o.rows.length, 0);
       const meta =
-        res.kind === "exec"
-          ? `${res.rowsAffected} row(s) affected`
-          : `${res.rows.length} row(s) · ${res.elapsedMs} ms`;
-      onStatus({ echo: sql.replace(/\s+/g, " "), ms: res.elapsedMs, note: meta });
+        res.length > 1
+          ? `${res.length} statements · ${rowsTotal} rows`
+          : lastQuery
+            ? `${lastQuery.rows.length} row(s) · ${lastQuery.elapsedMs} ms`
+            : `${res[0]?.rowsAffected ?? 0} row(s) affected`;
+      onStatus({
+        echo: sql.replace(/\s+/g, " "),
+        ms: res.reduce((a, o) => Math.max(a, o.elapsedMs), 0),
+        note: meta,
+      });
       pushHistory({ sql, ok: true, meta });
-      if (res.kind === "exec") onSchemaChanged();
+      if (res.some((o) => o.kind === "exec")) onSchemaChanged();
     } catch (e) {
       setError(String(e));
-      setResult(null);
+      setOutcomes([]);
       setPane("messages");
       onStatus({ echo: sql.replace(/\s+/g, " "), note: "error" });
       pushHistory({ sql, ok: false, meta: String(e) });
@@ -78,10 +87,11 @@ export default function SqlView({ onStatus, onSchemaChanged }: Props) {
 
   const [exportOpen, setExportOpen] = useState(false);
   const csvEscape = (s: string) => (/[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
+  const lastQueryOutcome = [...outcomes].reverse().find((o) => o.kind === "query") ?? null;
 
   const doExport = async (format: "csv" | "json") => {
     setExportOpen(false);
-    if (!result || result.kind !== "query") return;
+    if (!lastQueryOutcome) return;
     try {
       const path = await save({
         defaultPath: `query-result.${format}`,
@@ -91,9 +101,9 @@ export default function SqlView({ onStatus, onSchemaChanged }: Props) {
       const content =
         format === "json"
           ? JSON.stringify(
-              result.rows.map((row) => {
+              lastQueryOutcome.rows.map((row) => {
                 const obj: Record<string, unknown> = {};
-                result.columns.forEach((c, i) => {
+                lastQueryOutcome.columns.forEach((c, i) => {
                   const v = row[i];
                   obj[c] = isBlob(v) ? `BLOB (${v.__blob__} B)` : v;
                 });
@@ -103,15 +113,18 @@ export default function SqlView({ onStatus, onSchemaChanged }: Props) {
               2
             )
           : [
-              result.columns.map(csvEscape).join(","),
-              ...result.rows.map((r) => r.map((v) => csvEscape(cellText(v))).join(",")),
+              lastQueryOutcome.columns.map(csvEscape).join(","),
+              ...lastQueryOutcome.rows.map((r) => r.map((v) => csvEscape(cellText(v))).join(",")),
             ].join("\n");
       await saveText(path, content);
-      onStatus({ echo: `EXPORT result → ${path}`, note: `${result.rows.length} rows exported` });
+      onStatus({ echo: `EXPORT result → ${path}`, note: `${lastQueryOutcome.rows.length} rows exported` });
     } catch (e) {
       setError(String(e));
     }
   };
+
+  const totalRows = outcomes.filter((o) => o.kind === "query").reduce((a, o) => a + o.rows.length, 0);
+  const totalMs = outcomes.reduce((a, o) => Math.max(a, o.elapsedMs), 0);
 
   return (
     <div className="sql-layout">
@@ -133,11 +146,11 @@ export default function SqlView({ onStatus, onSchemaChanged }: Props) {
             Stop
           </button>
           <div className="grow" />
-          {result && (
+          {outcomes.length > 0 && (
             <span className="pgmeta">
-              {result.kind === "query"
-                ? `${result.rows.length} rows · ${result.elapsedMs} ms`
-                : `${result.rowsAffected} rows affected`}
+              {outcomes.length > 1
+                ? `${outcomes.length} statements · ${totalMs} ms`
+                : `${totalMs} ms`}
             </span>
           )}
         </div>
@@ -153,24 +166,24 @@ export default function SqlView({ onStatus, onSchemaChanged }: Props) {
             }
           }}
           spellCheck={false}
-          placeholder="Type SQL and press ⌘/Ctrl+Enter…"
+          placeholder={"Type SQL and press ⌘/Ctrl+Enter…\nMultiple statements are executed in order."}
         />
 
         <div className="result">
           <div className="rtabs">
             <button className={"rtab" + (pane === "results" ? " active" : "")} onClick={() => setPane("results")}>
               Results
-              {result?.kind === "query" && <span className="cnt">{result.rows.length}</span>}
+              {totalRows > 0 && <span className="cnt">{totalRows}</span>}
             </button>
             <button className={"rtab" + (pane === "messages" ? " active" : "")} onClick={() => setPane("messages")}>
               Messages
-              {error && <span className="sdot sdot-err" />}
+              {(error || outcomes.some((o) => o.kind === "error")) && <span className="sdot sdot-err" />}
             </button>
             <div className="grow" />
-            {result && <span className="resmeta">{result.elapsedMs} ms</span>}
-            {result?.kind === "query" && result.rows.length > 0 && (
+            {outcomes.length > 0 && <span className="resmeta">{totalMs} ms</span>}
+            {lastQueryOutcome && lastQueryOutcome.rows.length > 0 && (
               <div style={{ position: "relative", alignSelf: "center", marginRight: 8 }}>
-                <button className="btn" onClick={() => setExportOpen(!exportOpen)} title="Export the result (first 1000 rows)">
+                <button className="btn" onClick={() => setExportOpen(!exportOpen)} title="Export the last result set (first 1000 rows)">
                   <Icon name="i-download" />
                   Export
                   <Icon name="i-chev-d" className="icon icon-sm" />
@@ -191,42 +204,56 @@ export default function SqlView({ onStatus, onSchemaChanged }: Props) {
             )}
           </div>
 
-          {pane === "results" && result?.kind === "query" && (
-            <div className="grid-wrap result-grid">
-              <table className="grid">
-                <colgroup>
-                  <col style={{ width: 46 }} />
-                  {result.columns.map((_c, i) => (
-                    <col key={i} style={{ width: 200 }} />
-                  ))}
-                </colgroup>
-                <thead>
-                  <tr className="head-row">
-                    <th className="gutter">#</th>
-                    {result.columns.map((c, i) => (
-                      <th key={i}>
-                        <div className="th-in">
-                          <span className="th-name">{c}</span>
-                        </div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.rows.map((row, ri) => (
-                    <tr key={ri}>
-                      <td className="gutter">{ri + 1}</td>
-                      {row.map((v, ci) => (
-                        <td key={ci} className={cellClass(v)} title={v === null ? "NULL" : String(v)}>
-                          <CellView v={v} />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {result.rows.length === 0 && (
-                <div className="empty-main">0 rows — query executed in {result.elapsedMs} ms</div>
+          {pane === "results" && (
+            <div className="result-scroll">
+              {outcomes
+                .filter((o) => o.kind === "query")
+                .map((o) => (
+                  <div key={o.index} className="res-section">
+                    <div className="res-head">
+                      Statement {o.index} — {o.rows.length} rows · {o.elapsedMs} ms
+                    </div>
+                    <div className="grid-wrap result-grid">
+                      <table className="grid">
+                        <colgroup>
+                          <col style={{ width: 46 }} />
+                          {o.columns.map((_c, i) => (
+                            <col key={i} style={{ width: 200 }} />
+                          ))}
+                        </colgroup>
+                        <thead>
+                          <tr className="head-row">
+                            <th className="gutter">#</th>
+                            {o.columns.map((c, i) => (
+                              <th key={i}>
+                                <div className="th-in">
+                                  <span className="th-name">{c}</span>
+                                </div>
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {o.rows.map((row, ri) => (
+                            <tr key={ri}>
+                              <td className="gutter">{ri + 1}</td>
+                              {row.map((v, ci) => (
+                                <td key={ci} className={cellClass(v)} title={v === null ? "NULL" : String(v)}>
+                                  <CellView v={v} />
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {o.rows.length === 0 && (
+                        <div className="empty-main">0 rows — query executed in {o.elapsedMs} ms</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              {outcomes.length > 0 && totalRows === 0 && pane === "results" && (
+                <div className="empty-main">No result sets — see Messages</div>
               )}
             </div>
           )}
@@ -240,26 +267,41 @@ export default function SqlView({ onStatus, onSchemaChanged }: Props) {
                     Error
                   </div>
                   <div className="msg-box">{error}</div>
-                  <div className="msg-hint">Check the statement syntax — the message comes from SQLite itself.</div>
                 </>
-              ) : result?.kind === "exec" ? (
-                <>
-                  <div className="msg-title" style={{ color: "var(--accent)" }}>
-                    <Icon name="i-check" />
-                    Done
-                  </div>
-                  <div className="msg-box">
-                    {result.rowsAffected} row(s) affected · {result.elapsedMs} ms
-                  </div>
-                  <div className="msg-hint">
-                    Schema changes are picked up automatically. History is kept on the right.
-                  </div>
-                </>
-              ) : (
+              ) : outcomes.length === 0 ? (
                 <div className="msg-hint">
-                  Run a statement with <b>⌘/Ctrl+Enter</b>. SELECT results appear in the Results tab,
-                  DDL/DML confirmations — here. Only the first statement of the editor runs.
+                  Run statements with <b>⌘/Ctrl+Enter</b>. SELECT results appear in the Results tab,
+                  DDL/DML confirmations — here. Statements run in order; the sequence stops at the
+                  first error.
                 </div>
+              ) : (
+                outcomes.map((o) => (
+                  <div key={o.index} className="msg-outcome">
+                    {o.kind === "error" ? (
+                      <>
+                        <div className="msg-title">
+                          <Icon name="i-alert" />
+                          Statement {o.index} failed
+                        </div>
+                        <div className="msg-box">{o.error}</div>
+                        <div className="msg-meta truncate">{o.sql}</div>
+                      </>
+                    ) : o.kind === "exec" ? (
+                      <div className="msg-line">
+                        <span className="sdot sdot-ok" />
+                        Statement {o.index} — <b>{o.rowsAffected} row(s) affected</b> · {o.elapsedMs} ms
+                      </div>
+                    ) : (
+                      <div className="msg-line">
+                        <span className="sdot sdot-ok" />
+                        Statement {o.index} — {o.rows.length} rows · {o.elapsedMs} ms
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+              {!error && outcomes.some((o) => o.kind === "error") && (
+                <div className="msg-hint">The sequence stopped at the first failed statement.</div>
               )}
             </div>
           )}
