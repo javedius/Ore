@@ -44,7 +44,8 @@ Ore 只围绕一件事：**用最少的步骤打开 SQLite 文件并查看、修
 `.dmg`（Apple Silicon）、`.msi` / `.exe`（NSIS）以及 `.AppImage` / `.deb` / `.rpm`。
 
 > 安装包按标签（tag）自动构建。在首个标签发布之前，请从源码构建（见下文）。
-> macOS 构建暂未签名 —— 将应用复制到 Applications 后执行一次
+> macOS：最简单的方式 —— `brew install javedius/tap/ore`（无 Gatekeeper 弹窗）。
+> 手动下载 dmg？复制到 Applications 后执行一次
 > `xattr -dr com.apple.quarantine /Applications/Ore.app`（新版 macOS 会将未签名应用标记为已损坏，
 > 右键 → 打开 已不再有效）。
 
