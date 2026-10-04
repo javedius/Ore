@@ -41,7 +41,7 @@ Ore 只围绕一件事：**用最少的步骤打开 SQLite 文件并查看、修
 ## 下载
 
 前往 [Releases](https://github.com/javedius/Ore/releases) 获取安装包：
-`.dmg`（Apple Silicon + Intel）、`.msi` / `.exe`（NSIS）以及 `.AppImage` / `.deb` / `.rpm`。
+`.dmg`（Apple Silicon）、`.msi` / `.exe`（NSIS）以及 `.AppImage` / `.deb` / `.rpm`。
 
 > 安装包按标签（tag）自动构建。在首个标签发布之前，请从源码构建（见下文）。
 > macOS 构建暂未签名 —— 首次启动请右键 → 打开（Gatekeeper 提示）。

@@ -41,7 +41,7 @@ Ore построен вокруг одной задачи: **открыть SQLi
 ## Загрузка
 
 Установщики — на странице [Releases](https://github.com/javedius/Ore/releases):
-`.dmg` (Apple Silicon + Intel), `.msi` / `.exe` (NSIS) и `.AppImage` / `.deb` / `.rpm`.
+`.dmg` (Apple Silicon), `.msi` / `.exe` (NSIS) и `.AppImage` / `.deb` / `.rpm`.
 
 > Сборки делаются автоматически по тегу. До первого тега — соберите из исходников (ниже).
 > macOS-сборы пока без подписи — при первом запуске: правый клик → Открыть (замечание Gatekeeper).

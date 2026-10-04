@@ -41,7 +41,7 @@ Ore is built around one job: **open a SQLite file and look at, or fix, your data
 ## Download
 
 Grab an installer from [Releases](https://github.com/javedius/Ore/releases):
-`.dmg` (Apple Silicon + Intel), `.msi` / `.exe` (NSIS) and `.AppImage` / `.deb` / `.rpm`.
+`.dmg` (Apple Silicon), `.msi` / `.exe` (NSIS) and `.AppImage` / `.deb` / `.rpm`.
 
 > Builds are produced automatically per tag. Until the first tagged release, use [Build from source](#build-from-source).
 > macOS builds are unsigned for now — on first launch use right-click → Open (see the Gatekeeper note).
