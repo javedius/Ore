@@ -5,6 +5,7 @@ use rusqlite::types::Value as SqlValue;
 use rusqlite::{params_from_iter, Connection};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
 use std::time::Instant;
 use tauri::State;
 use tokio::sync::oneshot;
@@ -87,6 +88,7 @@ pub(crate) fn get_rows_impl(
     order_by: Option<&str>,
     order_desc: bool,
     filters: Option<&[FilterArg]>,
+    counts: &mut HashMap<String, i64>,
 ) -> Result<RowsResult, String> {
     let limit = limit.clamp(1, 500) as i64;
     if !object_exists(conn, object) {
@@ -96,16 +98,31 @@ pub(crate) fn get_rows_impl(
 
     let (where_sql, mut qvals) =
         build_filters(conn, object, filters.unwrap_or(&[]))?;
-    qvals.push(SqlValue::Integer(limit));
-    qvals.push(SqlValue::Integer(offset));
 
-    let total: i64 = conn
-        .query_row(
+    // Unfiltered totals are cached (invalidated on writes); filtered counts
+    // are computed fresh — they scan anyway.
+    let total: i64 = if where_sql.is_empty() {
+        match counts.get(object) {
+            Some(&n) => n,
+            None => {
+                let n = conn
+                    .query_row(&format!("SELECT COUNT(*) FROM {}", qname), [], |r| r.get(0))
+                    .unwrap_or(0);
+                counts.insert(object.to_string(), n);
+                n
+            }
+        }
+    } else {
+        conn.query_row(
             &format!("SELECT COUNT(*) FROM {}{}", qname, where_sql),
             params_from_iter(qvals.iter()),
             |r| r.get(0),
         )
-        .unwrap_or(0);
+        .unwrap_or(0)
+    };
+
+    qvals.push(SqlValue::Integer(limit));
+    qvals.push(SqlValue::Integer(offset));
 
     let order = match order_by {
         Some(col) if column_exists(conn, object, col) => format!(

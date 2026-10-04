@@ -3,6 +3,7 @@ use crate::schema::{build_schema, DbInfo, Schema};
 use crate::util::db_err;
 use rusqlite::{Connection, InterruptHandle, OpenFlags};
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{atomic::{AtomicBool, Ordering}, Arc, Mutex};
 use std::time::Duration;
@@ -127,6 +128,8 @@ pub fn spawn_db_thread() -> DbThread {
         .name("ore-db".into())
         .spawn(move || {
             let mut conn: Option<Connection> = None;
+            // Row counts per object, invalidated on any write through the app.
+            let mut counts: HashMap<String, i64> = HashMap::new();
             while let Some(req) = rx.blocking_recv() {
                 match req {
                     DbRequest::Open { path, reply } => {
@@ -134,6 +137,7 @@ pub fn spawn_db_thread() -> DbThread {
                             Ok((c, info)) => {
                                 int.set(Some(c.get_interrupt_handle()));
                                 let _ = conn.insert(c);
+                                counts.clear();
                                 let _ = reply.send(Ok(info));
                             }
                             Err(e) => {
@@ -145,6 +149,7 @@ pub fn spawn_db_thread() -> DbThread {
                     DbRequest::Close { reply } => {
                         int.set(None);
                         conn = None;
+                        counts.clear();
                         let _ = reply.send(Ok(()));
                     }
                     DbRequest::GetSchema { reply } => {
@@ -153,7 +158,7 @@ pub fn spawn_db_thread() -> DbThread {
                     DbRequest::GetRows { object, offset, limit, order_by, order_desc, filters, reply } => {
                         int.set_busy(true);
                         with_conn(&mut conn, reply, |c| {
-                            get_rows_impl(c, &object, offset, limit, order_by.as_deref(), order_desc, filters.as_deref())
+                            get_rows_impl(c, &object, offset, limit, order_by.as_deref(), order_desc, filters.as_deref(), &mut counts)
                         });
                         int.set_busy(false);
                     }
@@ -161,20 +166,24 @@ pub fn spawn_db_thread() -> DbThread {
                         int.set_busy(true);
                         with_conn(&mut conn, reply, |c| exec_sql_impl(c, &sql));
                         int.set_busy(false);
+                        counts.clear();
                     }
                     DbRequest::UpdateCell { edit, reply } => {
                         with_conn(&mut conn, reply, |c| crate::edit::update_cell_impl(c, &edit));
                     }
                     DbRequest::InsertRow { table, reply } => {
                         with_conn(&mut conn, reply, |c| crate::edit::insert_row_impl(c, &table));
+                        counts.clear();
                     }
                     DbRequest::DeleteRow { table, rowid, reply } => {
                         with_conn(&mut conn, reply, |c| crate::edit::delete_row_impl(c, &table, rowid));
+                        counts.clear();
                     }
                     DbRequest::ImportCsv { args, reply } => {
                         int.set_busy(true);
                         with_conn(&mut conn, reply, |c| crate::csv_io::import_csv_impl(c, &args).map(|r| r.imported));
                         int.set_busy(false);
+                        counts.clear();
                     }
                     DbRequest::ExportObject { args, reply } => {
                         int.set_busy(true);
@@ -319,6 +328,75 @@ mod tests {
                 .await
                 .unwrap();
             assert_eq!(n.rows, vec![vec![serde_json::json!(42)]]);
+
+            let (tx, rx) = oneshot::channel();
+            db.call(DbRequest::Close { reply: tx }, rx).await.unwrap();
+            let _ = std::fs::remove_file(&db_file);
+        });
+    }
+
+    /// The unfiltered row count is cached and invalidated on writes through
+    /// the app; a filtered count is always computed fresh.
+    #[test]
+    fn row_count_cache_is_invalidated_on_writes() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let db = spawn_db_thread();
+
+            let db_file = Path::new(env!("CARGO_MANIFEST_DIR")).join("target/ore-count-test.db");
+            let _ = std::fs::remove_file(&db_file);
+            {
+                let c = Connection::open(&db_file).unwrap();
+                c.execute_batch("CREATE TABLE t(x INTEGER); INSERT INTO t VALUES (1),(2),(3);")
+                    .unwrap();
+            }
+            let (tx, rx) = oneshot::channel();
+            db.call(DbRequest::Open { path: db_file.to_string_lossy().into_owned(), reply: tx }, rx)
+                .await
+                .unwrap();
+
+            async fn total(db: &DbThread, filters: Option<Vec<FilterArg>>) -> i64 {
+                let (tx, rx) = oneshot::channel();
+                db.call(
+                    DbRequest::GetRows {
+                        object: "t".into(),
+                        offset: 0,
+                        limit: 50,
+                        order_by: None,
+                        order_desc: false,
+                        filters,
+                        reply: tx,
+                    },
+                    rx,
+                )
+                .await
+                .unwrap()
+                .total
+            }
+
+            assert_eq!(total(&db, None).await, 3); // cached
+            assert_eq!(total(&db, None).await, 3); // served from cache
+
+            let (tx, rx) = oneshot::channel();
+            db.call(DbRequest::InsertRow { table: "t".into(), reply: tx }, rx).await.unwrap();
+            assert_eq!(total(&db, None).await, 4); // cache invalidated
+
+            assert_eq!(
+                total(&db, Some(vec![FilterArg { column: "x".into(), value: ">2".into() }])).await,
+                1
+            );
+            assert_eq!(
+                total(&db, Some(vec![FilterArg { column: "x".into(), value: ">2".into() }])).await,
+                1
+            );
+
+            let (tx, rx) = oneshot::channel();
+            db.call(DbRequest::DeleteRow { table: "t".into(), rowid: 4, reply: tx }, rx).await.unwrap();
+            assert_eq!(total(&db, None).await, 3);
+
+            let (tx, rx) = oneshot::channel();
+            db.call(DbRequest::ExecSql { sql: "DELETE FROM t".into(), reply: tx }, rx).await.unwrap();
+            assert_eq!(total(&db, None).await, 0);
 
             let (tx, rx) = oneshot::channel();
             db.call(DbRequest::Close { reply: tx }, rx).await.unwrap();
