@@ -292,3 +292,212 @@ mod tests {
         assert_eq!(infer_type(&records, 2, true), "REAL");
     }
 }
+
+#[cfg(test)]
+mod import_export_tests {
+    use super::*;
+    use crate::state::ExportArgs;
+    use std::path::{Path, PathBuf};
+
+    fn tmp(name: &str) -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("target").join(name)
+    }
+
+    #[test]
+    fn csv_preview_counts_rows_and_headers() {
+        let f = tmp("ore-preview-test.csv");
+        std::fs::write(&f, "h1,h2\n1,2\n3,4\n5,6\n7,8\n").unwrap();
+        let p = csv_preview(f.to_string_lossy().into_owned(), ",".into(), true).unwrap();
+        assert_eq!(p.headers, vec!["h1", "h2"]);
+        assert_eq!(p.total_rows, 4);
+        assert_eq!(p.rows.len(), 4);
+        assert_eq!(p.rows[0], vec!["1", "2"]);
+        // semicolon delimiter, no header
+        std::fs::write(&f, "a;b\nc;d\n").unwrap();
+        let p = csv_preview(f.to_string_lossy().into_owned(), ";".into(), false).unwrap();
+        assert_eq!(p.headers, vec!["col0", "col1"]);
+        assert_eq!(p.total_rows, 2);
+        let _ = std::fs::remove_file(&f);
+    }
+
+    #[test]
+    fn import_into_existing_table_maps_and_nulls() {
+        let db_file = tmp("ore-import-test.db");
+        let csv_file = tmp("ore-import-test.csv");
+        let _ = std::fs::remove_file(&db_file);
+        let _ = std::fs::remove_file(&csv_file);
+        {
+            let c = Connection::open(&db_file).unwrap();
+            c.execute_batch("CREATE TABLE items (id INTEGER, name TEXT, price REAL)").unwrap();
+        }
+        std::fs::write(
+            &csv_file,
+            "item_id,item_name,item_price,extra\n1,Widget,9.90,x\n2,\"Gadget, big\",,\"y\"\n3,Plug,4.50,\n",
+        )
+        .unwrap();
+
+        let conn = Connection::open(&db_file).unwrap();
+        let args = ImportArgs {
+            path: csv_file.to_string_lossy().into_owned(),
+            table: "items".into(),
+            create_table: false,
+            delimiter: ",".into(),
+            has_header: true,
+            mapping: vec![
+                Some("id".into()),
+                Some("name".into()),
+                Some("price".into()),
+                None, // extra column ignored
+            ],
+        };
+        let res = import_csv_impl(&conn, &args).unwrap();
+        assert_eq!(res.imported, 3);
+
+        let total: i64 = conn.query_row("SELECT COUNT(*) FROM items", [], |r| r.get(0)).unwrap();
+        assert_eq!(total, 3);
+        let price: Option<f64> =
+            conn.query_row("SELECT price FROM items WHERE id = 2", [], |r| r.get(0)).unwrap();
+        assert_eq!(price, None); // empty field became NULL
+        let name: String =
+            conn.query_row("SELECT name FROM items WHERE id = 2", [], |r| r.get(0)).unwrap();
+        assert_eq!(name, "Gadget, big"); // CSV quoting respected
+
+        // Unknown target column is rejected
+        let bad = ImportArgs {
+            mapping: vec![Some("nope".into())],
+            path: args.path.clone(),
+            table: "items".into(),
+            create_table: false,
+            delimiter: ",".into(),
+            has_header: true,
+        };
+        assert!(import_csv_impl(&conn, &bad).is_err());
+
+        drop(conn);
+        let _ = std::fs::remove_file(&db_file);
+        let _ = std::fs::remove_file(&csv_file);
+    }
+
+    #[test]
+    fn import_creates_table_with_inferred_types() {
+        let db_file = tmp("ore-create-test.db");
+        let csv_file = tmp("ore-create-test.csv");
+        let _ = std::fs::remove_file(&db_file);
+        let _ = std::fs::remove_file(&csv_file);
+        std::fs::write(&csv_file, "id,score,label\n1,1.5,abc\n2,2,def\n").unwrap();
+        let conn = Connection::open(&db_file).unwrap();
+        let args = ImportArgs {
+            path: csv_file.to_string_lossy().into_owned(),
+            table: "inferred".into(),
+            create_table: true,
+            delimiter: ",".into(),
+            has_header: true,
+            mapping: vec![
+                Some("id".into()),
+                Some("score".into()),
+                Some("label".into()),
+            ],
+        };
+        let res = import_csv_impl(&conn, &args).unwrap();
+        assert_eq!(res.imported, 2);
+        let id_ty: String = conn
+            .query_row("SELECT type FROM pragma_table_info('inferred') WHERE name = 'id'", [], |r| r.get(0))
+            .unwrap();
+        let score_ty: String = conn
+            .query_row("SELECT type FROM pragma_table_info('inferred') WHERE name = 'score'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(id_ty, "INTEGER");
+        assert_eq!(score_ty, "REAL");
+        drop(conn);
+        let _ = std::fs::remove_file(&db_file);
+        let _ = std::fs::remove_file(&csv_file);
+    }
+
+    #[test]
+    fn import_failure_rolls_back_completely() {
+        let db_file = tmp("ore-rollback-test.db");
+        let csv_file = tmp("ore-rollback-test.csv");
+        let _ = std::fs::remove_file(&db_file);
+        let _ = std::fs::remove_file(&csv_file);
+        {
+            let c = Connection::open(&db_file).unwrap();
+            c.execute_batch("CREATE TABLE strict (name TEXT NOT NULL)").unwrap();
+        }
+        // Row 2 violates NOT NULL (empty -> NULL): the whole import must roll back
+        std::fs::write(&csv_file, "name\nok\n\"\"\nalso-ok\n").unwrap(); // quoted empty -> NULL -> NOT NULL violation
+        let conn = Connection::open(&db_file).unwrap();
+        let args = ImportArgs {
+            path: csv_file.to_string_lossy().into_owned(),
+            table: "strict".into(),
+            create_table: false,
+            delimiter: ",".into(),
+            has_header: true,
+            mapping: vec![Some("name".into())],
+        };
+        assert!(import_csv_impl(&conn, &args).is_err());
+        let total: i64 = conn.query_row("SELECT COUNT(*) FROM strict", [], |r| r.get(0)).unwrap();
+        assert_eq!(total, 0, "partial rows must be rolled back");
+        drop(conn);
+        let _ = std::fs::remove_file(&db_file);
+        let _ = std::fs::remove_file(&csv_file);
+    }
+
+    #[test]
+    fn export_csv_quotes_and_json_keeps_null() {
+        let db_file = tmp("ore-export-test.db");
+        let csv_out = tmp("ore-export-test.csv");
+        let json_out = tmp("ore-export-test.json");
+        let _ = std::fs::remove_file(&db_file);
+        {
+            let c = Connection::open(&db_file).unwrap();
+            c.execute_batch(
+                "CREATE TABLE t (a INTEGER, b TEXT);
+                 INSERT INTO t VALUES (1, 'plain'), (2, 'has, comma'), (3, NULL);",
+            )
+            .unwrap();
+        }
+        let conn = Connection::open(&db_file).unwrap();
+
+        let csv_args = ExportArgs {
+            object: "t".into(),
+            path: csv_out.to_string_lossy().into_owned(),
+            format: "csv".into(),
+            filters: None,
+        };
+        let r = export_object_impl(&conn, &csv_args).unwrap();
+        assert_eq!(r.rows, 3);
+        let content = std::fs::read_to_string(&csv_out).unwrap();
+        assert_eq!(content, "a,b\n1,plain\n2,\"has, comma\"\n3,\n");
+
+        let json_args = ExportArgs {
+            path: json_out.to_string_lossy().into_owned(),
+            format: "json".into(),
+            filters: None,
+            object: "t".into(),
+        };
+        let r = export_object_impl(&conn, &json_args).unwrap();
+        assert_eq!(r.rows, 3);
+        let content = std::fs::read_to_string(&json_out).unwrap();
+        assert!(content.contains("\"b\":null"), "json: {}", content);
+        assert!(content.contains("\"a\":1"), "json: {}", content);
+
+        drop(conn);
+        let _ = std::fs::remove_file(&db_file);
+        let _ = std::fs::remove_file(&csv_out);
+        let _ = std::fs::remove_file(&json_out);
+    }
+
+    #[test]
+    fn import_csv_rejects_unknown_table() {
+        let conn = Connection::open_in_memory().unwrap();
+        let args = ImportArgs {
+            path: "whatever.csv".into(),
+            table: "missing".into(),
+            create_table: false,
+            delimiter: ",".into(),
+            has_header: true,
+            mapping: vec![Some("x".into())],
+        };
+        assert!(import_csv_impl(&conn, &args).is_err());
+    }
+}
