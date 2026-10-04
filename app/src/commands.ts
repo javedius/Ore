@@ -36,6 +36,7 @@ export const insertRow = (table: string) => invoke<number>("insert_row", { table
 export const deleteRow = (table: string, rowid: number) =>
   invoke<void>("delete_row", { table, rowid });
 export const pathExists = (path: string) => invoke<boolean>("path_exists", { path });
+export const stopQuery = () => invoke<void>("stop_query");
 
 export const csvPreview = (path: string, delimiter: string, hasHeader: boolean) =>
   invoke<CsvPreview>("csv_preview", { path, delimiter, hasHeader });

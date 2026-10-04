@@ -1,11 +1,6 @@
-use crate::state::AppDb;
 use crate::util::{db_err, quote_ident};
 use rusqlite::Connection;
 use serde::Serialize;
-use std::fs;
-use std::path::Path;
-use std::time::Duration;
-use tauri::State;
 
 // --- Types sent to the frontend (camelCase via serde) ---
 
@@ -171,55 +166,5 @@ pub fn column_exists(conn: &Connection, table: &str, column: &str) -> bool {
     false
 }
 
-// --- Commands: DB lifecycle and schema ---
-
-#[tauri::command(async)]
-pub fn open_db(path: String, db: State<'_, AppDb>) -> Result<DbInfo, String> {
-    if !Path::new(&path).exists() {
-        return Err(format!("File not found: {}", path));
-    }
-    let conn = Connection::open_with_flags(
-        &path,
-        rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE | rusqlite::OpenFlags::SQLITE_OPEN_NOFOLLOW,
-    )
-    .map_err(db_err)?;
-    conn.busy_timeout(Duration::from_secs(5)).map_err(db_err)?;
-
-    // The first query fails with NOTADB if the file is not a SQLite database
-    let fallback_name =
-        Path::new(&path).file_name().and_then(|s| s.to_str()).unwrap_or(&path).to_string();
-    let sqlite_version: String = conn
-        .query_row("SELECT sqlite_version()", [], |r| r.get(0))
-        .map_err(|_| format!("{} is not a SQLite database", fallback_name))?;
-    let journal_mode: String = conn
-        .query_row("PRAGMA journal_mode", [], |r| r.get(0))
-        .unwrap_or_default();
-    let size_bytes = fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
-    let name = fallback_name;
-
-    let schema = build_schema(&conn)?;
-
-    *db.0.lock().unwrap() = Some(conn);
-
-    Ok(DbInfo {
-        path,
-        name,
-        size_bytes,
-        sqlite_version,
-        journal_mode,
-        schema,
-    })
-}
-
-#[tauri::command(async)]
-pub fn close_db(db: State<'_, AppDb>) -> Result<(), String> {
-    *db.0.lock().unwrap() = None;
-    Ok(())
-}
-
-#[tauri::command(async)]
-pub fn get_schema(db: State<'_, AppDb>) -> Result<Schema, String> {
-    let guard = db.0.lock().unwrap();
-    let conn = guard.as_ref().ok_or("No database is open")?;
-    build_schema(conn)
-}
+// --- DB lifecycle commands (open/close/get_schema) live in state.rs,
+// --- where the dedicated DB thread owns the connection.
