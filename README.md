@@ -44,10 +44,12 @@ Grab an installer from [Releases](https://github.com/javedius/Ore/releases):
 `.dmg` (Apple Silicon), `.msi` / `.exe` (NSIS) and `.AppImage` / `.deb` / `.rpm`.
 
 > Builds are produced automatically per tag. Until the first tagged release, use [Build from source](#build-from-source).
-> macOS: the simplest way — `brew install javedius/tap/ore` (no Gatekeeper prompts).
+> macOS: the simplest way — one command:
+> `curl -fsSL https://raw.githubusercontent.com/javedius/Ore/main/install.sh | sh`
+> (installs the latest build into /Applications without Gatekeeper prompts).
 > Downloading the dmg manually? Copy to Applications and run once:
 > `xattr -dr com.apple.quarantine /Applications/Ore.app` (recent macOS reports unsigned
-> apps as damaged; right-click → Open no longer works).
+> apps as damaged).
 
 ## Build from source
 
