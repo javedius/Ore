@@ -1,29 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
-import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { openDb, pathExists } from "../commands";
+import { addRecent, loadRecents, type Recent } from "../recents";
 import type { DbInfo } from "../types";
 import { MoBust } from "./Mo";
 
 const RECENTS_KEY = "caliper-recents";
 
-interface Recent {
-  path: string;
-  name: string;
-  ts: number;
-}
-
 function isTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-}
-
-function loadRecents(): Recent[] {
-  try {
-    const raw = localStorage.getItem(RECENTS_KEY);
-    return raw ? (JSON.parse(raw) as Recent[]) : [];
-  } catch {
-    return [];
-  }
 }
 
 function timeAgo(ts: number): string {
@@ -37,7 +22,13 @@ function timeAgo(ts: number): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-export default function EmptyState({ onOpened }: { onOpened: (db: DbInfo) => void }) {
+export default function EmptyState({
+  onOpened,
+  onOpenClick,
+}: {
+  onOpened: (db: DbInfo) => void;
+  onOpenClick: () => void;
+}) {
   const [recents, setRecents] = useState<Recent[]>(loadRecents);
   const [missing, setMissing] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
@@ -63,16 +54,8 @@ export default function EmptyState({ onOpened }: { onOpened: (db: DbInfo) => voi
       setError(null);
       try {
         const db = await openDb(path);
-        const next = [
-          { path, name: db.name, ts: Date.now() },
-          ...loadRecents().filter((r) => r.path !== path),
-        ].slice(0, 8);
-        setRecents(next);
-        try {
-          localStorage.setItem(RECENTS_KEY, JSON.stringify(next));
-        } catch {
-          /* private mode — not critical */
-        }
+        addRecent(path, db.name);
+        setRecents(loadRecents());
         onOpened(db);
       } catch (e) {
         setError(String(e));
@@ -82,18 +65,6 @@ export default function EmptyState({ onOpened }: { onOpened: (db: DbInfo) => voi
     },
     [onOpened]
   );
-
-  const pickFile = useCallback(async () => {
-    try {
-      const file = await open({
-        multiple: false,
-        filters: [{ name: "SQLite database", extensions: ["db", "sqlite", "sqlite3", "db3"] }],
-      });
-      if (typeof file === "string") await doOpen(file);
-    } catch {
-      /* dialog cancelled */
-    }
-  }, [doOpen]);
 
   // Drag&drop of a database file onto the window
   useEffect(() => {
@@ -130,12 +101,12 @@ export default function EmptyState({ onOpened }: { onOpened: (db: DbInfo) => voi
     <div className="app">
       <div className="es-body">
         <div className="es-col">
-          <div className={"dropzone" + (dragOver ? " is-over" : "")} onClick={busy ? undefined : pickFile}>
+          <div className={"dropzone" + (dragOver ? " is-over" : "")} onClick={busy ? undefined : onOpenClick}>
             <MoBust className="dz-mo" />
             <div className="dz-title">{busy ? "Opening…" : "Drop a SQLite file here"}</div>
             <div className="dz-sub">.db · .sqlite · .sqlite3</div>
             <div className="dz-actions" onClick={(e) => e.stopPropagation()}>
-              <button className="btn btn-primary" disabled={busy} onClick={pickFile}>
+              <button className="btn btn-primary" disabled={busy} onClick={onOpenClick}>
                 Open Database…
               </button>
             </div>
