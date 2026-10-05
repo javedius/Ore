@@ -8,13 +8,14 @@ interface Props {
   activeName: string | null;
   onOpen: (name: string, kind: "table" | "view") => void;
   onRefresh: () => void;
+  onCloseDatabase: () => void;
 }
 
 function RowCount({ n }: { n: number }) {
   return <span className="tmeta">{n >= 0 ? n.toLocaleString("en-US") : "…"}</span>;
 }
 
-export default function Sidebar({ db, schema, activeName, onOpen, onRefresh }: Props) {
+export default function Sidebar({ db, schema, activeName, onOpen, onRefresh, onCloseDatabase }: Props) {
   const [filter, setFilter] = useState("");
   const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set());
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -90,6 +91,9 @@ export default function Sidebar({ db, schema, activeName, onOpen, onRefresh }: P
         </div>
         <button className="icon-btn" title="Refresh schema" onClick={onRefresh}>
           <Icon name="i-refresh" />
+        </button>
+        <button className="icon-btn" title="Close database" onClick={onCloseDatabase}>
+          <Icon name="i-x" />
         </button>
       </div>
 

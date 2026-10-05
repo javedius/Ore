@@ -19,16 +19,6 @@ pub struct RowsResult {
     pub total: i64,
 }
 
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SqlResult {
-    pub kind: String, // "query" | "exec"
-    pub columns: Vec<String>,
-    pub rows: Vec<Vec<Value>>,
-    pub rows_affected: i64,
-    pub elapsed_ms: u128,
-}
-
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FilterArg {

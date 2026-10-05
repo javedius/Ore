@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { getSchema } from "./commands";
+import { listen } from "@tauri-apps/api/event";
+import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
+import { closeDb, getSchema, openDb } from "./commands";
+import { addRecent } from "./recents";
+import { toggleTheme } from "./theme";
 import type { DbInfo, Schema, StatusInfo, Tab } from "./types";
 import { Icon, IconSprite } from "./components/Icons";
 import { fmtSize } from "./components/cell";
@@ -12,13 +16,14 @@ import ImportDialog from "./components/ImportDialog";
 
 function ThemeToggle() {
   const [theme, setTheme] = useState(document.documentElement.dataset.theme || "dark");
+  // Keep the toggle in sync when the theme is switched from the menu
+  useEffect(() => {
+    const onTheme = (e: Event) => setTheme((e as CustomEvent<"dark" | "light">).detail);
+    window.addEventListener("ore-theme-change", onTheme);
+    return () => window.removeEventListener("ore-theme-change", onTheme);
+  }, []);
   const set = (t: "dark" | "light") => {
-    document.documentElement.dataset.theme = t;
-    try {
-      localStorage.setItem("caliper-theme", t);
-    } catch {
-      /* noop */
-    }
+    toggleTheme();
     setTheme(t);
   };
   return (
@@ -64,6 +69,49 @@ export default function App() {
     setStatus({});
   }, []);
 
+  const openDatabaseDialog = useCallback(async () => {
+    try {
+      const file = await openFileDialog({
+        multiple: false,
+        filters: [{ name: "SQLite database", extensions: ["db", "sqlite", "sqlite3", "db3"] }],
+      });
+      if (typeof file !== "string") return;
+      const info = await openDb(file);
+      addRecent(file, info.name);
+      onOpened(info);
+    } catch (e) {
+      setStatus({ note: String(e) });
+    }
+  }, [onOpened]);
+
+  const closeDatabase = useCallback(async () => {
+    try {
+      await closeDb();
+    } catch {
+      /* noop */
+    }
+    setDb(null);
+    setSchema(null);
+    setTabs([]);
+    setActiveId(null);
+    setStatus({});
+    setEditingInfo(null);
+  }, []);
+
+  // Native menu events (File / View menus are built on the Rust side)
+  useEffect(() => {
+    const unlisteners = [
+      listen("menu-open-db", () => void openDatabaseDialog()),
+      listen("menu-close-db", () => void closeDatabase()),
+      listen("menu-refresh", () => refreshSchema()),
+      listen("menu-import", () => setImportOpen(true)),
+      listen("menu-theme", () => toggleTheme()),
+    ];
+    return () => {
+      unlisteners.forEach((p) => void p.then((u) => u()));
+    };
+  }, [openDatabaseDialog, closeDatabase, refreshSchema]);
+
   const openObject = useCallback(
     (name: string, kind: "table" | "view") => {
       const id = `${kind}:${name}`;
@@ -99,7 +147,7 @@ export default function App() {
     return (
       <>
         <IconSprite />
-        <EmptyState onOpened={onOpened} />
+        <EmptyState onOpened={onOpened} onOpenClick={() => void openDatabaseDialog()} />
       </>
     );
   }
@@ -117,6 +165,7 @@ export default function App() {
             activeName={active && active.kind !== "sql" ? active.name : null}
             onOpen={openObject}
             onRefresh={refreshSchema}
+            onCloseDatabase={() => void closeDatabase()}
           />
           <main className="main">
             <div className="tabbar">
