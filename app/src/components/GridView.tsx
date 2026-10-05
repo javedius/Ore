@@ -15,6 +15,7 @@ interface Props {
   onStatus: (s: StatusInfo) => void;
   onSchemaChanged: () => void;
   onImportClick: () => void;
+  onEditState: (info: { table: string; column: string } | null) => void;
 }
 
 interface MenuState {
@@ -37,7 +38,16 @@ function placeholderFor(ctype: string): string {
   return "contains";
 }
 
-export default function GridView({ name, kind, hasRowid, fileReadOnly, onStatus, onSchemaChanged, onImportClick }: Props) {
+export default function GridView({
+  name,
+  kind,
+  hasRowid,
+  fileReadOnly,
+  onStatus,
+  onSchemaChanged,
+  onImportClick,
+  onEditState,
+}: Props) {
   const [data, setData] = useState<RowsResult | null>(null);
   const [page, setPage] = useState(0);
   const [orderBy, setOrderBy] = useState<string | null>(null);
@@ -83,6 +93,18 @@ export default function GridView({ name, kind, hasRowid, fileReadOnly, onStatus,
     setDrafts({});
     setApplied([]);
   }, [name]);
+
+  // Report the in-progress cell edit up to the status bar and tab dot
+  useEffect(() => {
+    if (editing && data) {
+      onEditState({
+        table: name,
+        column: data.columns[editing.colIdx]?.name ?? "",
+      });
+    } else {
+      onEditState(null);
+    }
+  }, [editing, data, name, onEditState]);
 
   const total = data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / LIMIT));
@@ -345,7 +367,10 @@ export default function GridView({ name, kind, hasRowid, fileReadOnly, onStatus,
                   }
                   onClick={() => setSelected(ri)}
                 >
-                  <td className="gutter">{ri + 1 + page * LIMIT}</td>
+                  <td className="gutter">
+                    {editing?.rowIdx === ri && <span className="gdot" title="Unsaved change" />}
+                    {ri + 1 + page * LIMIT}
+                  </td>
                   {row.map((v, ci) =>
                     editing?.rowIdx === ri && editing.colIdx === ci ? (
                       <td key={ci} className="cell-editing">

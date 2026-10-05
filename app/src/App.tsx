@@ -42,6 +42,7 @@ export default function App() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [status, setStatus] = useState<StatusInfo>({});
   const [importOpen, setImportOpen] = useState(false);
+  const [editingInfo, setEditingInfo] = useState<{ table: string; column: string } | null>(null);
 
   // UI готово — закрываем сплэш и показываем главное окно
   useEffect(() => {
@@ -126,6 +127,9 @@ export default function App() {
                   onClick={() => setActiveId(t.id)}
                 >
                   {t.name}
+                  {editingInfo && editingInfo.table === t.name && (
+                    <span className="dot" title="Unsaved edit" />
+                  )}
                   <button
                     className="tclose"
                     title="Close tab"
@@ -179,6 +183,7 @@ export default function App() {
                       onStatus={setStatus}
                       onSchemaChanged={refreshSchema}
                       onImportClick={() => setImportOpen(true)}
+                      onEditState={setEditingInfo}
                     />
                   )}
                 </div>
@@ -192,6 +197,12 @@ export default function App() {
                 </b>
               </span>
               <span className="query-echo mono">{status.echo ?? ""}</span>
+              {editingInfo && (
+                <span className="editing-chip">
+                  <Icon name="i-enter" className="icon icon-sm" />
+                  Editing {editingInfo.table}.{editingInfo.column} · ⏎ save · Esc cancel
+                </span>
+              )}
               {status.note && <span className="sb-seg">{status.note}</span>}
               {status.ms !== undefined && <span className="sb-seg">{status.ms} ms</span>}
               <span className="sb-seg">{fmtSize(db.sizeBytes)}</span>
